@@ -1,0 +1,5 @@
+{
+  "name": "Brazuca Manager AI",
+  "description": "Um simulador de gerenciamento de futebol brasileiro impulsionado por IA. Escolha seu time, gerencie o elenco, contrate jogadores e dispute partidas.",
+  "requestFramePermissions": []
+}
