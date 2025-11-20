@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType } from './types';
 import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateScoutReport, generateFictionalTeamName } from './services/geminiService';
 import { Card } from './components/Card';
@@ -20,7 +20,9 @@ import {
     Edit3,
     Save,
     Calendar,
-    Briefcase
+    Briefcase,
+    MonitorPlay,
+    Zap
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -172,6 +174,73 @@ const StatsCard = ({ title, value, icon, colorClass, bgClass }: any) => (
     </div>
 );
 
+// --- 2D Field Component ---
+const SoccerField = ({ 
+    homeTeam, 
+    awayTeam, 
+    gameTime, 
+    ballPos, 
+    homePositions, 
+    awayPositions 
+}: { 
+    homeTeam: Team, 
+    awayTeam: Team, 
+    gameTime: number, 
+    ballPos: {x: number, y: number},
+    homePositions: {x: number, y: number}[],
+    awayPositions: {x: number, y: number}[]
+}) => {
+    return (
+        <div className="w-full aspect-[16/9] bg-green-600 rounded-lg relative overflow-hidden border-4 border-slate-800 shadow-inner select-none">
+            {/* Field Lines */}
+            <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/50 transform -translate-x-1/2"></div>
+            <div className="absolute top-1/2 left-1/2 w-20 h-20 md:w-32 md:h-32 border-2 border-white/50 rounded-full transform -translate-x-1/2 -translate-y-1/2"></div>
+            <div className="absolute top-0 left-0 w-full h-full border-2 border-white/50 m-2 md:m-4 box-border pointer-events-none"></div>
+            
+            {/* Penalty Areas */}
+            <div className="absolute top-1/2 left-0 w-[15%] h-[40%] border-2 border-white/50 bg-transparent transform -translate-y-1/2 ml-2 md:ml-4"></div>
+            <div className="absolute top-1/2 right-0 w-[15%] h-[40%] border-2 border-white/50 bg-transparent transform -translate-y-1/2 mr-2 md:mr-4"></div>
+
+            {/* Goals */}
+            <div className="absolute top-1/2 left-0 w-1 h-12 bg-white transform -translate-y-1/2 -translate-x-full"></div>
+            <div className="absolute top-1/2 right-0 w-1 h-12 bg-white transform -translate-y-1/2 translate-x-full"></div>
+
+            {/* Players - Home */}
+            {homePositions.map((pos, i) => (
+                <div 
+                    key={`home-${i}`}
+                    className={`absolute w-3 h-3 md:w-4 md:h-4 rounded-full shadow-sm border border-white transition-all duration-500 ease-linear z-10 flex items-center justify-center text-[6px] text-white font-bold ${homeTeam.primaryColor}`}
+                    style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                    {/* Optional: Number */}
+                </div>
+            ))}
+
+            {/* Players - Away */}
+            {awayPositions.map((pos, i) => (
+                <div 
+                    key={`away-${i}`}
+                    className={`absolute w-3 h-3 md:w-4 md:h-4 rounded-full shadow-sm border border-white transition-all duration-500 ease-linear z-10 flex items-center justify-center text-[6px] ${awayTeam.primaryColor} ${awayTeam.secondaryColor === 'text-white' ? 'text-white' : 'text-black'}`}
+                    style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                </div>
+            ))}
+
+            {/* Ball */}
+            <div 
+                className="absolute w-2 h-2 md:w-2.5 md:h-2.5 bg-white rounded-full shadow-lg z-20 transition-all duration-500 ease-linear border border-slate-400"
+                style={{ left: `${ballPos.x}%`, top: `${ballPos.y}%`, transform: 'translate(-50%, -50%)' }}
+            ></div>
+            
+            {/* Game Time Overlay */}
+            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full font-mono font-bold text-sm backdrop-blur-sm">
+                {gameTime}'
+            </div>
+        </div>
+    );
+};
+
+
 // Main App Component
 export default function App() {
   const [view, setView] = useState<ViewState>('select-team');
@@ -195,6 +264,17 @@ export default function App() {
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [leagueTable, setLeagueTable] = useState<TeamStats[]>([]);
+  
+  // 2D Match Simulation State
+  const [isVisualMatch, setIsVisualMatch] = useState(false);
+  const [simTime, setSimTime] = useState(0);
+  const [currentOpponent, setCurrentOpponent] = useState<Team | null>(null);
+  const [currentScore, setCurrentScore] = useState({ home: 0, away: 0 });
+  const [ballPosition, setBallPosition] = useState({ x: 50, y: 50 });
+  const [homePlayerPos, setHomePlayerPos] = useState<{x:number, y:number}[]>([]);
+  const [awayPlayerPos, setAwayPlayerPos] = useState<{x:number, y:number}[]>([]);
+  const [matchEvents, setMatchEvents] = useState<any[]>([]);
+  const [lastEventIndex, setLastEventIndex] = useState(-1);
 
   // Rumo ao Estrelato State
   const [rtsStep, setRtsStep] = useState<'form' | 'simulating' | 'offers'>('form');
@@ -256,6 +336,8 @@ export default function App() {
     setCreatedPlayer(null);
     setScoutText("");
     setContractOffers([]);
+    // Reset Visual Sim
+    setIsVisualMatch(false);
   };
 
   const handleSkipWeek = () => {
@@ -278,15 +360,12 @@ export default function App() {
 
   // --- Squad Management Handlers ---
 
-  // 1. Initiate Sell
   const handleInitiateSell = (player: Player) => {
       setSellingPlayer(player);
-      // Generate 3 random offers
       const potentialTeams = BRAZILIAN_TEAMS.filter(t => t.name !== userTeam?.name);
       const randomTeams = potentialTeams.sort(() => 0.5 - Math.random()).slice(0, 3);
       
       const newOffers = randomTeams.map(team => {
-          // Offer varies between -15% to +20% of value
           const variation = (Math.random() * 0.35) - 0.15;
           return {
               team: team.name,
@@ -296,33 +375,28 @@ export default function App() {
       setOffers(newOffers);
   };
 
-  // 2. Confirm Sell
   const handleConfirmSell = (offer: {team: string, value: number}) => {
       if (!sellingPlayer) return;
       setBudget(prev => prev + offer.value);
       setSquad(prev => prev.filter(p => p.id !== sellingPlayer.id));
-      setMarket(prev => [...prev, sellingPlayer]); // Player goes to market
+      setMarket(prev => [...prev, sellingPlayer]); 
       setSellingPlayer(null);
       setOffers([]);
       alert(`Negócio fechado! ${sellingPlayer.name} vendido para ${offer.team} por $${offer.value.toFixed(1)}M.`);
   };
 
-  // 3. Initiate Loan (NEW)
   const handleInitiateLoan = (player: Player) => {
       setLoaningPlayer(player);
-      // Generate 2 fictional team offers
       const offers = [
           { team: generateFictionalTeamName(), value: player.value * 0.15 },
           { team: generateFictionalTeamName(), value: player.value * 0.12 }
       ];
-      // Ensure names are unique
       if (offers[0].team === offers[1].team) {
           offers[1].team = generateFictionalTeamName();
       }
       setLoanOffers(offers);
   };
 
-  // 4. Confirm Loan (NEW)
   const handleConfirmLoan = (offer: {team: string, value: number}) => {
       if (!loaningPlayer) return;
       setBudget(prev => prev + offer.value);
@@ -332,9 +406,8 @@ export default function App() {
       alert(`${loaningPlayer.name} foi emprestado ao ${offer.team} com sucesso! (+ $${offer.value.toFixed(1)}M)`);
   };
 
-  // 5. Renew
   const handleRenew = (player: Player) => {
-      const cost = player.value * 0.1; // 10% renewal cost
+      const cost = player.value * 0.1;
       if (budget < cost) {
           alert(`Fundos insuficientes! Custo da renovação: $${cost.toFixed(1)}M`);
           return;
@@ -343,7 +416,6 @@ export default function App() {
       if (window.confirm(`Renovar com ${player.name} por $${cost.toFixed(1)}M? (+50 semanas)`)) {
           setBudget(prev => prev - cost);
           setSquad(prev => prev.map(p => p.id === player.id ? { ...p, contractWeeks: p.contractWeeks + 50 } : p));
-          // New Feedback
           alert(`Contrato de ${player.name} renovado com sucesso! Novo vínculo: ${player.contractWeeks + 50} semanas.`);
       }
   };
@@ -352,24 +424,112 @@ export default function App() {
       if (budget >= player.value) {
           setBudget(prev => prev - player.value);
           setMarket(prev => prev.filter(p => p.id !== player.id));
-          // New player gets fresh contract
           setSquad(prev => [...prev, { ...player, team: userTeam?.name, contractWeeks: 52 }]);
       } else {
           alert("Fundos insuficientes!");
       }
   };
 
-  const handlePlayMatch = async () => {
+  // --- Match Logic ---
+
+  const initializeMatchPositions = () => {
+      // 4-4-2 Formation (percentages)
+      // GK, Defs, Mids, Atts
+      const homeBase = [
+          {x: 5, y: 50}, // GK
+          {x: 20, y: 20}, {x: 20, y: 40}, {x: 20, y: 60}, {x: 20, y: 80}, // DEF
+          {x: 45, y: 20}, {x: 45, y: 40}, {x: 45, y: 60}, {x: 45, y: 80}, // MID
+          {x: 65, y: 40}, {x: 65, y: 60}  // ATT
+      ];
+
+      // Mirror for away team
+      const awayBase = homeBase.map(p => ({ x: 100 - p.x, y: p.y }));
+
+      setHomePlayerPos(homeBase);
+      setAwayPlayerPos(awayBase);
+  };
+
+  const prepareMatch = async (visual: boolean) => {
       if (!userTeam) return;
-      setIsSimulating(true);
-      setMatchResult(null);
       
-      // Pick random opponent different from user
+      // Pick random opponent
       const potentialOpponents = BRAZILIAN_TEAMS.filter(t => t.id !== userTeam.id);
       const opponent = potentialOpponents[Math.floor(Math.random() * potentialOpponents.length)];
-      
+      setCurrentOpponent(opponent);
+
+      // Pre-calculate Result
+      setIsSimulating(true);
       const result = await simulateMatchWithGemini(userTeam, squad, opponent);
       setMatchResult(result);
+      setMatchEvents(result.events);
+      
+      if (visual) {
+          setIsVisualMatch(true);
+          setSimTime(0);
+          setCurrentScore({ home: 0, away: 0 });
+          initializeMatchPositions();
+          setLastEventIndex(-1);
+          // Simulation will be handled by useEffect
+      } else {
+          // Quick Sim - Finish Immediately
+          finishMatch(result, opponent);
+      }
+  };
+
+  // Simulation Loop for Visual Match
+  useEffect(() => {
+      if (!isVisualMatch || !matchResult || simTime > 90) return;
+
+      const timer = setInterval(() => {
+          setSimTime(prev => {
+              const nextTime = prev + 1;
+              if (nextTime > 90) {
+                  finishMatch(matchResult, currentOpponent!);
+                  return 92; // Stop
+              }
+              return nextTime;
+          });
+
+          // Check for events at current minute
+          const eventsNow = matchEvents.filter(e => e.minute === simTime);
+          if (eventsNow.length > 0) {
+               eventsNow.forEach(e => {
+                   if (e.type === 'goal') {
+                        if (e.team === 'home') {
+                            setCurrentScore(s => ({ ...s, home: s.home + 1 }));
+                            setBallPosition({ x: 95, y: 50 }); // Ball in away net
+                        } else {
+                            setCurrentScore(s => ({ ...s, away: s.away + 1 }));
+                            setBallPosition({ x: 5, y: 50 }); // Ball in home net
+                        }
+                   }
+               });
+          } else {
+              // Random Movement if no goal
+              setHomePlayerPos(prev => prev.map(p => ({
+                  x: Math.max(2, Math.min(98, p.x + (Math.random() - 0.5) * 2)),
+                  y: Math.max(2, Math.min(98, p.y + (Math.random() - 0.5) * 2))
+              })));
+              setAwayPlayerPos(prev => prev.map(p => ({
+                x: Math.max(2, Math.min(98, p.x + (Math.random() - 0.5) * 2)),
+                y: Math.max(2, Math.min(98, p.y + (Math.random() - 0.5) * 2))
+             })));
+
+             // Move Ball
+             setBallPosition(prev => ({
+                 x: Math.max(5, Math.min(95, prev.x + (Math.random() - 0.5) * 15)),
+                 y: Math.max(5, Math.min(95, prev.y + (Math.random() - 0.5) * 10))
+             }));
+          }
+
+      }, 150); // Speed of simulation
+
+      return () => clearInterval(timer);
+  }, [isVisualMatch, simTime, matchResult, matchEvents]);
+
+  const finishMatch = (result: MatchResult, opponent: Team) => {
+      setIsVisualMatch(false);
+      setIsSimulating(false);
       
       // UPDATE TABLE LOGIC
       setLeagueTable(prevTable => {
@@ -377,7 +537,7 @@ export default function App() {
           let userPoints = 0;
 
           // Update User Team Stats
-          const userStats = newTable.find(t => t.id === userTeam.id);
+          const userStats = newTable.find(t => t.id === userTeam?.id);
           if (userStats) {
               userStats.played += 1;
               userStats.gf += result.homeScore;
@@ -405,7 +565,6 @@ export default function App() {
                       year: 2024
                   };
                   setTrophies(prev => [...prev, newTrophy]);
-                  // Optional: Delay alert slightly to not block rendering
                   setTimeout(() => alert("PARABÉNS! VOCÊ É CAMPEÃO BRASILEIRO! O troféu está na sua galeria."), 500);
               }
           }
@@ -427,34 +586,23 @@ export default function App() {
               }
           }
 
-          // SIMULATE ROUND FOR OTHER TEAMS (To keep table alive)
-          const otherTeams = newTable.filter(t => t.id !== userTeam.id && t.id !== opponent.id);
+          // SIMULATE ROUND FOR OTHER TEAMS
+          const otherTeams = newTable.filter(t => t.id !== userTeam?.id && t.id !== opponent.id);
           for (let i = 0; i < otherTeams.length; i += 2) {
               if (i + 1 < otherTeams.length) {
                   const t1 = otherTeams[i];
                   const t2 = otherTeams[i+1];
-                  
                   const score1 = Math.floor(Math.random() * 4);
                   const score2 = Math.floor(Math.random() * 4);
-                  
                   t1.played += 1; t2.played += 1;
                   t1.gf += score1; t1.ga += score2;
                   t2.gf += score2; t2.ga += score1;
-                  
-                  if (score1 > score2) {
-                      t1.points += 3; t1.won += 1;
-                      t2.lost += 1;
-                  } else if (score2 > score1) {
-                      t2.points += 3; t2.won += 1;
-                      t1.lost += 1;
-                  } else {
-                      t1.points += 1; t1.drawn += 1;
-                      t2.points += 1; t2.drawn += 1;
-                  }
+                  if (score1 > score2) { t1.points += 3; t1.won += 1; t2.lost += 1; }
+                  else if (score2 > score1) { t2.points += 3; t2.won += 1; t1.lost += 1; }
+                  else { t1.points += 1; t1.drawn += 1; t2.points += 1; t2.drawn += 1; }
               }
           }
 
-          // Sort table
           return newTable.sort((a, b) => {
               if (b.points !== a.points) return b.points - a.points;
               if (b.won !== a.won) return b.won - a.won;
@@ -463,8 +611,6 @@ export default function App() {
               return gdB - gdA;
           });
       });
-
-      setIsSimulating(false);
 
       if (result.win) setBudget(prev => prev + 2.5);
       if (result.draw) setBudget(prev => prev + 1.0);
@@ -480,17 +626,13 @@ export default function App() {
   const handleAmateurMatch = async (name: string, position: Position) => {
       setCreatedPlayer({ name, position });
       setRtsStep('simulating');
-      
       try {
         const report = await generateScoutReport(name, position);
         setScoutText(report);
-        
         const cruzeiro = BRAZILIAN_TEAMS.find(t => t.id === 'cru');
         if (!cruzeiro) throw new Error("Cruzeiro not found");
-        
         const otherTeams = BRAZILIAN_TEAMS.filter(t => t.id !== 'cru').sort(() => 0.5 - Math.random()).slice(0, 2);
         setContractOffers([cruzeiro, ...otherTeams]);
-        
         setRtsStep('offers');
       } catch (e) {
           console.error(e);
@@ -501,10 +643,8 @@ export default function App() {
   const handleAcceptOffer = async (team: Team) => {
       if (!createdPlayer) return;
       setLoading(true);
-      
       try {
         const players = await generateSquadForTeam(team.name);
-        
         const newPlayer: Player = {
             id: "my-custom-player",
             name: createdPlayer.name,
@@ -515,13 +655,11 @@ export default function App() {
             contractWeeks: 52,
             team: team.name
         };
-
         setUserTeam(team);
         setSquad([newPlayer, ...players]);
         initializeTable();
         setView('dashboard');
         generateTransferMarket().then(setMarket);
-        
       } catch (error) {
           console.error("Error accepting offer", error);
       } finally {
@@ -1087,32 +1225,80 @@ export default function App() {
         )}
 
         {view === 'match' && userTeam && (
-            <div className="max-w-3xl mx-auto animate-fade-in">
-                {!isSimulating && !matchResult && (
+            <div className="max-w-4xl mx-auto animate-fade-in">
+                {!isSimulating && !matchResult && !isVisualMatch && (
                     <div className="text-center py-12 md:py-20">
                         <div className="bg-white p-6 md:p-10 rounded-2xl shadow-xl border border-slate-100">
                             <Trophy size={48} className="md:w-16 md:h-16 text-yellow-500 mx-auto mb-6" />
                             <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-4">Dia de Jogo</h2>
-                            <p className="text-slate-500 mb-8 text-sm md:text-base">O time está pronto. A torcida está esperando.</p>
-                            <button 
-                                onClick={handlePlayMatch}
-                                className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-lg px-10 py-4 rounded-xl md:rounded-full font-bold shadow-lg shadow-emerald-200 transition-all transform hover:scale-105"
-                            >
-                                Iniciar Partida
-                            </button>
+                            <p className="text-slate-500 mb-8 text-sm md:text-base">Escolha como deseja acompanhar a partida.</p>
+                            
+                            <div className="flex flex-col md:flex-row gap-4 justify-center">
+                                <button 
+                                    onClick={() => prepareMatch(false)}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 px-8 rounded-xl transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Zap size={20} />
+                                    Simulação Rápida
+                                </button>
+                                <button 
+                                    onClick={() => prepareMatch(true)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-lg px-10 py-4 rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+                                >
+                                    <MonitorPlay size={24} />
+                                    Assistir Partida 2D
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {isSimulating && (
-                    <div className="text-center py-32">
-                         <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-600 mx-auto mb-6"></div>
-                         <h3 className="text-xl font-bold text-slate-700">A bola está rolando...</h3>
-                         <p className="text-slate-500">A IA está simulando os 90 minutos.</p>
+                {isVisualMatch && userTeam && currentOpponent && (
+                    <div className="space-y-6">
+                        <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-2xl text-white">
+                            <div className="p-4 flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${userTeam.primaryColor} ${userTeam.secondaryColor}`}>
+                                        {userTeam.name.substring(0, 2)}
+                                    </div>
+                                    <span className="font-bold text-xl">{currentScore.home}</span>
+                                </div>
+                                <div className="bg-slate-800 px-3 py-1 rounded text-xs font-mono text-emerald-400 animate-pulse">
+                                    AO VIVO
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="font-bold text-xl">{currentScore.away}</span>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${currentOpponent.primaryColor} ${currentOpponent.secondaryColor}`}>
+                                        {currentOpponent.name.substring(0, 2)}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* 2D Field */}
+                            <SoccerField 
+                                homeTeam={userTeam}
+                                awayTeam={currentOpponent}
+                                gameTime={simTime}
+                                ballPos={ballPosition}
+                                homePositions={homePlayerPos}
+                                awayPositions={awayPlayerPos}
+                            />
+                            
+                            <div className="p-3 text-center bg-slate-800 text-xs text-slate-400">
+                                Transmissão oficial Brazuca Manager AI
+                            </div>
+                        </div>
                     </div>
                 )}
 
-                {matchResult && !isSimulating && (
+                {isSimulating && !isVisualMatch && (
+                    <div className="text-center py-32">
+                         <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-600 mx-auto mb-6"></div>
+                         <h3 className="text-xl font-bold text-slate-700">Calculando Resultado...</h3>
+                    </div>
+                )}
+
+                {matchResult && !isSimulating && !isVisualMatch && (
                     <div className="space-y-6">
                         {/* Scoreboard */}
                         <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-2xl text-white">
