@@ -23,6 +23,18 @@ export interface Team {
   logoUrl?: string;
 }
 
+export interface TeamStats {
+  id: string;
+  name: string;
+  points: number;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  gf: number; // Goals For
+  ga: number; // Goals Against
+}
+
 export interface MatchEvent {
   minute: number;
   description: string;
@@ -40,7 +52,7 @@ export interface MatchResult {
   draw: boolean;
 }
 
-export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match';
+export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'career-mode' | 'standings';
 
 export const BRAZILIAN_TEAMS: Team[] = [
   { id: 'fla', name: 'Flamengo', primaryColor: 'bg-red-600', secondaryColor: 'text-black' },
