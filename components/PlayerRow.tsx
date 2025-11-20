@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Player, Position } from '../types';
 import { User } from 'lucide-react';
@@ -6,6 +7,9 @@ interface PlayerRowProps {
   player: Player;
   actionButton?: React.ReactNode;
   showPrice?: boolean;
+  onSell?: (p: Player) => void;
+  onLoan?: (p: Player) => void;
+  onRenew?: (p: Player) => void;
 }
 
 const getPositionColor = (pos: Position) => {
@@ -27,10 +31,10 @@ const getPositionAbbr = (pos: Position) => {
     }
   };
 
-export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, showPrice = false }) => {
+export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, showPrice = false, onSell, onLoan, onRenew }) => {
   return (
     <div className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border-b border-slate-100 last:border-0">
-      <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
+      <div className="flex items-center gap-3 md:gap-4 overflow-hidden flex-1">
         <div className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-slate-200 text-slate-500`}>
            <User size={18} className="md:hidden" />
            <User size={20} className="hidden md:block" />
@@ -49,7 +53,18 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
         </div>
       </div>
 
-      <div className="flex items-center gap-2 md:gap-6 flex-shrink-0">
+      <div className="flex items-center gap-4 flex-shrink-0">
+        
+        {/* Contract Info (Only in Squad view typically) */}
+        {onRenew && (
+            <div className="hidden sm:block text-center w-20">
+                <p className="text-[9px] text-slate-500 uppercase font-bold">Contrato</p>
+                <p className={`font-bold text-xs ${player.contractWeeks < 10 ? 'text-red-600' : 'text-slate-700'}`}>
+                    {player.contractWeeks} sem.
+                </p>
+            </div>
+        )}
+
         <div className="text-center min-w-[30px]">
           <p className="text-[9px] md:text-xs text-slate-500 uppercase font-bold">OVR</p>
           <p className={`font-bold text-sm md:text-base ${player.rating >= 80 ? 'text-green-600' : player.rating >= 70 ? 'text-yellow-600' : 'text-slate-600'}`}>
@@ -66,11 +81,37 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
            </div>
         )}
 
-        {actionButton && (
-            <div className="pl-1 md:pl-0">
-                {actionButton}
-            </div>
-        )}
+        {/* Action Buttons Group */}
+        <div className="flex gap-1">
+            {onSell && (
+                <button 
+                    onClick={() => onSell(player)}
+                    className="text-[10px] md:text-xs bg-red-50 text-red-600 hover:bg-red-100 px-2 py-1.5 rounded border border-red-200 transition-colors"
+                    title="Vender Jogador"
+                >
+                    Vender
+                </button>
+            )}
+            {onLoan && (
+                <button 
+                    onClick={() => onLoan(player)}
+                    className="text-[10px] md:text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1.5 rounded border border-blue-200 transition-colors"
+                    title="Emprestar Jogador"
+                >
+                    Emprestar
+                </button>
+            )}
+            {onRenew && (
+                <button 
+                    onClick={() => onRenew(player)}
+                    className="text-[10px] md:text-xs bg-green-50 text-green-600 hover:bg-green-100 px-2 py-1.5 rounded border border-green-200 transition-colors"
+                    title="Renovar Contrato (+50 sem.)"
+                >
+                    Renovar
+                </button>
+            )}
+            {actionButton && actionButton}
+        </div>
       </div>
     </div>
   );

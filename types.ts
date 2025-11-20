@@ -1,3 +1,4 @@
+
 export enum Position {
   GK = 'Goleiro',
   DEF = 'Defensor',
@@ -12,6 +13,7 @@ export interface Player {
   rating: number; // 1-100
   age: number;
   value: number; // In millions
+  contractWeeks: number; // Weeks remaining
   team?: string;
 }
 
@@ -35,6 +37,13 @@ export interface TeamStats {
   ga: number; // Goals Against
 }
 
+export interface Trophy {
+  id: string;
+  name: string;
+  year: number;
+  competition: string;
+}
+
 export interface MatchEvent {
   minute: number;
   description: string;
@@ -52,7 +61,7 @@ export interface MatchResult {
   draw: boolean;
 }
 
-export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'career-mode' | 'standings';
+export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'career-mode' | 'standings' | 'trophies' | 'settings';
 
 export const BRAZILIAN_TEAMS: Team[] = [
   { id: 'fla', name: 'Flamengo', primaryColor: 'bg-red-600', secondaryColor: 'text-black' },

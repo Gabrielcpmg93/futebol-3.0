@@ -61,6 +61,7 @@ export const generateSquadForTeam = async (teamName: string): Promise<Player[]> 
         rating: rating,
         age: getRandomNumber(17, 34),
         value: Math.max(0.5, value),
+        contractWeeks: getRandomNumber(20, 60),
         team: teamName
       });
     }
@@ -87,6 +88,7 @@ export const generateTransferMarket = async (): Promise<Player[]> => {
       rating: rating,
       age: getRandomNumber(18, 32),
       value: Math.max(1, value),
+      contractWeeks: getRandomNumber(30, 80),
       team: "Free Agent"
     });
   }

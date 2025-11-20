@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats } from './types';
+import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType } from './types';
 import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateScoutReport } from './services/geminiService';
 import { Card } from './components/Card';
 import { PlayerRow } from './components/PlayerRow';
@@ -13,7 +14,13 @@ import {
     Trophy,
     Star,
     UserPlus,
-    ListOrdered
+    ListOrdered,
+    Settings,
+    Award,
+    Edit3,
+    Save,
+    Calendar,
+    Briefcase
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -73,11 +80,13 @@ const Sidebar = ({
     team: Team | null
 }) => {
     const menuItems = [
-        { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
+        { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
         { id: 'match', label: 'Jogar', icon: PlayCircle },
         { id: 'standings', label: 'Tabela', icon: ListOrdered },
         { id: 'squad', label: 'Elenco', icon: Users },
         { id: 'market', label: 'Transferências', icon: ArrowLeftRight },
+        { id: 'trophies', label: 'Sala de Troféus', icon: Award },
+        { id: 'settings', label: 'Configurações', icon: Settings },
     ];
 
     if (!team) return null;
@@ -170,8 +179,14 @@ export default function App() {
   const [squad, setSquad] = useState<Player[]>([]);
   const [market, setMarket] = useState<Player[]>([]);
   const [budget, setBudget] = useState<number>(50); // Millions
+  const [week, setWeek] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
+  const [trophies, setTrophies] = useState<TrophyType[]>([]);
   
+  // Selling State
+  const [sellingPlayer, setSellingPlayer] = useState<Player | null>(null);
+  const [offers, setOffers] = useState<{team: string, value: number}[]>([]);
+
   // Match State
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -228,8 +243,10 @@ export default function App() {
     setUserTeam(null);
     setView('select-team');
     setBudget(50);
+    setWeek(1);
     setIsSimulating(false);
     setLeagueTable([]);
+    setTrophies([]);
     // Reset RTS state
     setRtsStep('form');
     setCreatedPlayer(null);
@@ -237,19 +254,85 @@ export default function App() {
     setContractOffers([]);
   };
 
-  // Handlers
-  const handleSellPlayer = (player: Player) => {
-      const sellValue = player.value * 0.9; // Sell for slightly less
-      setBudget(prev => prev + sellValue);
-      setSquad(prev => prev.filter(p => p.id !== player.id));
-      setMarket(prev => [...prev, player]); 
+  const handleSkipWeek = () => {
+      setWeek(prev => prev + 1);
+      
+      const updatedSquad = squad.map(p => ({
+          ...p,
+          contractWeeks: p.contractWeeks - 1
+      })).filter(p => {
+          if (p.contractWeeks <= 0) {
+              alert(`O contrato de ${p.name} expirou e ele deixou o clube!`);
+              return false;
+          }
+          return true;
+      });
+
+      setSquad(updatedSquad);
+      alert("Semana pulada! Contratos atualizados.");
+  };
+
+  // --- Squad Management Handlers ---
+
+  // 1. Initiate Sell
+  const handleInitiateSell = (player: Player) => {
+      setSellingPlayer(player);
+      // Generate 3 random offers
+      const potentialTeams = BRAZILIAN_TEAMS.filter(t => t.name !== userTeam?.name);
+      const randomTeams = potentialTeams.sort(() => 0.5 - Math.random()).slice(0, 3);
+      
+      const newOffers = randomTeams.map(team => {
+          // Offer varies between -15% to +20% of value
+          const variation = (Math.random() * 0.35) - 0.15;
+          return {
+              team: team.name,
+              value: player.value * (1 + variation)
+          };
+      });
+      setOffers(newOffers);
+  };
+
+  // 2. Confirm Sell
+  const handleConfirmSell = (offer: {team: string, value: number}) => {
+      if (!sellingPlayer) return;
+      setBudget(prev => prev + offer.value);
+      setSquad(prev => prev.filter(p => p.id !== sellingPlayer.id));
+      setMarket(prev => [...prev, sellingPlayer]); // Player goes to market
+      setSellingPlayer(null);
+      setOffers([]);
+      alert(`Negócio fechado! ${sellingPlayer.name} vendido para ${offer.team} por $${offer.value.toFixed(1)}M.`);
+  };
+
+  // 3. Loan
+  const handleLoan = (player: Player) => {
+      const loanFee = player.value * 0.15; // 15% loan fee
+      if (window.confirm(`Deseja emprestar ${player.name} por uma taxa de $${loanFee.toFixed(1)}M? Ele deixará o elenco.`)) {
+          setBudget(prev => prev + loanFee);
+          setSquad(prev => prev.filter(p => p.id !== player.id));
+          alert("Empréstimo realizado com sucesso!");
+      }
+  };
+
+  // 4. Renew
+  const handleRenew = (player: Player) => {
+      const cost = player.value * 0.1; // 10% renewal cost
+      if (budget < cost) {
+          alert(`Fundos insuficientes! Custo da renovação: $${cost.toFixed(1)}M`);
+          return;
+      }
+      
+      if (window.confirm(`Renovar com ${player.name} por $${cost.toFixed(1)}M? (+50 semanas)`)) {
+          setBudget(prev => prev - cost);
+          setSquad(prev => prev.map(p => p.id === player.id ? { ...p, contractWeeks: p.contractWeeks + 50 } : p));
+      }
   };
 
   const handleBuyPlayer = (player: Player) => {
       if (budget >= player.value) {
           setBudget(prev => prev - player.value);
           setMarket(prev => prev.filter(p => p.id !== player.id));
-          setSquad(prev => [...prev, { ...player, team: userTeam?.name }]);
+          // New player gets fresh contract
+          setSquad(prev => [...prev, { ...player, team: userTeam?.name, contractWeeks: 52 }]);
       } else {
           alert("Fundos insuficientes!");
       }
@@ -270,7 +353,8 @@ export default function App() {
       // UPDATE TABLE LOGIC
       setLeagueTable(prevTable => {
           const newTable = [...prevTable];
-          
+          let userPoints = 0;
+
           // Update User Team Stats
           const userStats = newTable.find(t => t.id === userTeam.id);
           if (userStats) {
@@ -285,6 +369,23 @@ export default function App() {
                   userStats.drawn += 1;
               } else {
                   userStats.lost += 1;
+              }
+              userPoints = userStats.points;
+          }
+
+          // CHECK FOR CHAMPION (89 POINTS)
+          if (userPoints >= 89) {
+              const hasTrophy = trophies.some(t => t.competition === 'Brasileirão Série A' && t.year === 2024);
+              if (!hasTrophy) {
+                  const newTrophy: TrophyType = {
+                      id: Math.random().toString(),
+                      name: 'Campeão Brasileiro',
+                      competition: 'Brasileirão Série A',
+                      year: 2024
+                  };
+                  setTrophies(prev => [...prev, newTrophy]);
+                  // Optional: Delay alert slightly to not block rendering
+                  setTimeout(() => alert("PARABÉNS! VOCÊ É CAMPEÃO BRASILEIRO! O troféu está na sua galeria."), 500);
               }
           }
 
@@ -306,14 +407,12 @@ export default function App() {
           }
 
           // SIMULATE ROUND FOR OTHER TEAMS (To keep table alive)
-          // Pair up remaining teams randomly
           const otherTeams = newTable.filter(t => t.id !== userTeam.id && t.id !== opponent.id);
           for (let i = 0; i < otherTeams.length; i += 2) {
               if (i + 1 < otherTeams.length) {
                   const t1 = otherTeams[i];
                   const t2 = otherTeams[i+1];
                   
-                  // Simple random score logic for simulation
                   const score1 = Math.floor(Math.random() * 4);
                   const score2 = Math.floor(Math.random() * 4);
                   
@@ -334,7 +433,7 @@ export default function App() {
               }
           }
 
-          // Sort table: Points > Wins > GD > GF
+          // Sort table
           return newTable.sort((a, b) => {
               if (b.points !== a.points) return b.points - a.points;
               if (b.won !== a.won) return b.won - a.won;
@@ -346,7 +445,7 @@ export default function App() {
 
       setIsSimulating(false);
 
-      if (result.win) setBudget(prev => prev + 2.5); // Prize money
+      if (result.win) setBudget(prev => prev + 2.5);
       if (result.draw) setBudget(prev => prev + 1.0);
   };
 
@@ -361,12 +460,10 @@ export default function App() {
       setCreatedPlayer({ name, position });
       setRtsStep('simulating');
       
-      // Simulate delay and scout generation
       try {
         const report = await generateScoutReport(name, position);
         setScoutText(report);
         
-        // Generate Offers: Cruzeiro + 2 Random
         const cruzeiro = BRAZILIAN_TEAMS.find(t => t.id === 'cru');
         if (!cruzeiro) throw new Error("Cruzeiro not found");
         
@@ -376,7 +473,7 @@ export default function App() {
         setRtsStep('offers');
       } catch (e) {
           console.error(e);
-          setRtsStep('form'); // Reset on error
+          setRtsStep('form'); 
       }
   };
 
@@ -385,22 +482,20 @@ export default function App() {
       setLoading(true);
       
       try {
-        // Initialize as if selecting team normally
         const players = await generateSquadForTeam(team.name);
         
-        // Add the custom player
         const newPlayer: Player = {
             id: "my-custom-player",
             name: createdPlayer.name,
             position: createdPlayer.position,
-            rating: 78, // Start decent
+            rating: 78, 
             age: 18,
             value: 10,
+            contractWeeks: 52,
             team: team.name
         };
 
         setUserTeam(team);
-        // Add to top of squad
         setSquad([newPlayer, ...players]);
         initializeTable();
         setView('dashboard');
@@ -413,8 +508,17 @@ export default function App() {
       }
   };
 
-  // Safely render TeamSelection if view is correct OR if userTeam is null (fallback to prevent white screen)
-  // Exception: 'career-mode' doesn't need a userTeam initially
+  const updatePlayerName = (id: string, newName: string) => {
+      setSquad(prev => prev.map(p => p.id === id ? { ...p, name: newName } : p));
+  };
+
+  const updateTeamName = (newName: string) => {
+      if (userTeam) {
+          setUserTeam({ ...userTeam, name: newName });
+          setLeagueTable(prev => prev.map(t => t.id === userTeam.id ? { ...t, name: newName } : t));
+      }
+  };
+
   if (view !== 'career-mode' && (view === 'select-team' || !userTeam)) {
     return <TeamSelection onSelect={handleTeamSelect} />;
   }
@@ -422,8 +526,48 @@ export default function App() {
   const avgRating = (squad.reduce((acc, p) => acc + p.rating, 0) / (squad.length || 1)).toFixed(0);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50">
-      {/* Hide Sidebar in career mode flow to keep focus */}
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50 relative">
+      
+      {/* SELL MODAL */}
+      {sellingPlayer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
+              <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+                  <div className="bg-emerald-600 p-4 text-white">
+                      <h3 className="font-bold text-lg">Propostas por {sellingPlayer.name}</h3>
+                      <p className="text-emerald-100 text-sm">Valor de Mercado: ${sellingPlayer.value.toFixed(1)}M</p>
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <p className="text-slate-600 text-sm mb-2">Selecione a melhor oferta para fechar negócio:</p>
+                      {offers.map((offer, idx) => (
+                          <button 
+                              key={idx}
+                              onClick={() => handleConfirmSell(offer)}
+                              className="w-full flex justify-between items-center p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all group"
+                          >
+                              <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-600 text-xs">
+                                      {offer.team.substring(0, 3).toUpperCase()}
+                                  </div>
+                                  <span className="font-bold text-slate-800">{offer.team}</span>
+                              </div>
+                              <span className="font-bold text-emerald-600 group-hover:scale-110 transition-transform">
+                                  $ {offer.value.toFixed(1)}M
+                              </span>
+                          </button>
+                      ))}
+                  </div>
+                  <div className="bg-slate-50 p-4 border-t border-slate-100 text-center">
+                      <button 
+                          onClick={() => { setSellingPlayer(null); setOffers([]); }}
+                          className="text-slate-500 hover:text-slate-700 font-medium text-sm"
+                      >
+                          Cancelar Negociação
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {view !== 'career-mode' && (
           <Sidebar 
             currentView={view} 
@@ -432,12 +576,10 @@ export default function App() {
           />
       )}
       
-      {/* Main Content Area */}
       <main className={`flex-1 p-4 pb-24 lg:p-8 overflow-y-auto h-screen scroll-smooth ${view === 'career-mode' ? 'bg-slate-900 text-white flex items-center justify-center' : ''}`}>
         
-        {/* Standard Views Header */}
         {view !== 'career-mode' && (
-            <div className="flex flex-row overflow-x-auto md:grid md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8 pb-2 md:pb-0 snap-x snap-mandatory no-scrollbar">
+            <div className="flex flex-row overflow-x-auto md:grid md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8 pb-2 md:pb-0 snap-x snap-mandatory no-scrollbar">
                 <StatsCard 
                     title="Orçamento" 
                     value={`$ ${budget.toFixed(1)} M`} 
@@ -459,6 +601,13 @@ export default function App() {
                     colorClass="border-purple-500"
                     bgClass="bg-purple-100"
                 />
+                 <StatsCard 
+                    title="Semana" 
+                    value={week} 
+                    icon={<Calendar size={20} className="text-amber-600" />} 
+                    colorClass="border-amber-500"
+                    bgClass="bg-amber-100"
+                />
             </div>
         )}
 
@@ -466,43 +615,92 @@ export default function App() {
         
         {view === 'dashboard' && userTeam && (
             <div className="space-y-6 animate-fade-in">
-                <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl p-6 md:p-8 text-white shadow-lg relative overflow-hidden">
-                    <div className={`absolute -right-6 -top-6 w-32 h-32 rounded-full opacity-20 ${userTeam.primaryColor} blur-3xl`}></div>
+                
+                {/* Quick Action Buttons */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                     <button 
+                        onClick={handleSkipWeek}
+                        className="bg-white hover:bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
+                    >
+                        <div className="p-3 bg-slate-100 rounded-full text-slate-600 group-hover:bg-slate-200 transition-colors">
+                            <Calendar size={24} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-sm">Pular Semana</h3>
+                            <p className="text-[10px] text-slate-500">Atualiza contratos</p>
+                        </div>
+                    </button>
+
+                    <button 
+                        onClick={() => setView('trophies')}
+                        className="bg-white hover:bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
+                    >
+                        <div className="p-3 bg-amber-100 rounded-full text-amber-600 group-hover:scale-110 transition-transform">
+                            <Award size={24} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-amber-900 text-sm">Troféus</h3>
+                            <p className="text-[10px] text-amber-700">Ver conquistas</p>
+                        </div>
+                    </button>
                     
-                    <div className="relative z-10">
-                        <h2 className="text-2xl md:text-3xl font-bold mb-2">Bem-vindo, Manager.</h2>
-                        <p className="text-slate-300 mb-6 text-sm md:text-base">Sua jornada com o {userTeam.name} começa agora. Prepare o time.</p>
-                        <button 
-                            onClick={() => setView('match')}
-                            className="bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 w-full md:w-auto justify-center shadow-lg shadow-emerald-900/20"
-                        >
-                            <PlayCircle size={20} />
-                            Ir para a Partida
-                        </button>
-                    </div>
+                    <button 
+                        onClick={() => setView('settings')}
+                        className="bg-white hover:bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
+                    >
+                        <div className="p-3 bg-slate-100 rounded-full text-slate-600 group-hover:scale-110 transition-transform">
+                            <Settings size={24} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-sm">Ajustes</h3>
+                            <p className="text-[10px] text-slate-600">Editar clube</p>
+                        </div>
+                    </button>
+
+                    <button 
+                        onClick={() => setView('squad')}
+                        className="bg-white hover:bg-blue-50 border border-blue-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
+                    >
+                        <div className="p-3 bg-blue-100 rounded-full text-blue-600 group-hover:scale-110 transition-transform">
+                            <Briefcase size={24} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-blue-800 text-sm">Gestão</h3>
+                            <p className="text-[10px] text-blue-600">Gerir Contratos</p>
+                        </div>
+                    </button>
+                </div>
+
+                <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl p-6 text-white shadow-lg flex items-center justify-between">
+                     <div>
+                         <h2 className="text-2xl font-bold mb-1">Dia de Jogo</h2>
+                         <p className="text-indigo-100 text-sm">Prepare seu time para o próximo desafio.</p>
+                     </div>
+                     <button 
+                        onClick={() => setView('match')}
+                        className="bg-white text-indigo-600 font-bold py-3 px-6 rounded-lg hover:bg-indigo-50 transition-colors flex items-center gap-2 shadow-lg"
+                    >
+                        <PlayCircle size={20} />
+                        Jogar
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Rumo ao Estrelato Card - Replaces Top Players */}
-                    <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl shadow-lg overflow-hidden text-white relative">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-                        <div className="p-6 md:p-8 flex flex-col h-full justify-between relative z-10">
-                            <div>
-                                <div className="flex items-center gap-2 mb-2 text-blue-200">
-                                    <Star size={20} />
-                                    <span className="text-sm font-bold uppercase tracking-wider">Novo Modo</span>
-                                </div>
-                                <h3 className="text-2xl font-bold mb-2">Rumo ao Estrelato</h3>
-                                <p className="text-blue-100 mb-6 text-sm md:text-base">Crie seu próprio jogador, jogue na várzea e consiga um contrato profissional com um grande clube.</p>
+                    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="bg-blue-100 p-2 rounded-full text-blue-600">
+                                <Star size={20} />
                             </div>
-                            <button 
-                                onClick={startCareerMode}
-                                className="w-full bg-white text-blue-700 font-bold py-3 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <UserPlus size={20} />
-                                Criar Jogador
-                            </button>
+                            <h3 className="text-lg font-bold text-slate-800">Rumo ao Estrelato</h3>
                         </div>
+                        <p className="text-slate-500 text-sm mb-6">Crie seu próprio jogador, jogue na várzea e consiga um contrato profissional.</p>
+                        <button 
+                            onClick={startCareerMode}
+                            className="w-full bg-slate-50 text-blue-600 border border-blue-200 font-bold py-3 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <UserPlus size={18} />
+                            Criar Jogador
+                        </button>
                     </div>
 
                     <Card title="Classificação Rápida">
@@ -523,7 +721,90 @@ export default function App() {
             </div>
         )}
 
-        {/* Career Mode View */}
+        {view === 'trophies' && (
+            <div className="animate-fade-in">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-slate-800">Sala de Troféus</h2>
+                    <div className="text-sm text-slate-500">{trophies.length} Conquistas</div>
+                </div>
+                
+                {trophies.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-slate-200 border-dashed">
+                        <div className="bg-slate-100 p-4 rounded-full mb-4 opacity-50">
+                            <Award size={48} className="text-slate-400" />
+                        </div>
+                        <h3 className="text-lg font-medium text-slate-600 mb-1">Nenhum troféu ainda</h3>
+                        <p className="text-slate-400 text-sm text-center max-w-xs">Vença o campeonato atingindo 89 pontos para começar sua coleção.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {trophies.map((trophy) => (
+                            <div key={trophy.id} className="bg-white p-6 rounded-xl shadow-sm border border-amber-100 flex flex-col items-center text-center relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div>
+                                <div className="p-4 bg-amber-50 rounded-full mb-4 text-amber-500">
+                                    <Trophy size={32} fill="#fbbf24" />
+                                </div>
+                                <h3 className="font-bold text-slate-800 mb-1">{trophy.name}</h3>
+                                <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{trophy.competition}</p>
+                                <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">{trophy.year}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        )}
+
+        {view === 'settings' && userTeam && (
+            <div className="animate-fade-in max-w-4xl mx-auto">
+                <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <Settings className="text-slate-400" />
+                    Configurações do Clube
+                </h2>
+
+                <div className="space-y-8">
+                    {/* Team Settings */}
+                    <Card title="Detalhes do Time">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Nome do Clube</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        value={userTeam.name} 
+                                        onChange={(e) => updateTeamName(e.target.value)}
+                                        className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                    />
+                                </div>
+                                <p className="text-xs text-slate-500 mt-2">Isso alterará o nome do time na tabela e nos placares.</p>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Player Editor */}
+                    <Card title="Editar Elenco">
+                        <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto pr-2">
+                            {squad.sort((a,b) => b.rating - a.rating).map((player) => (
+                                <div key={player.id} className="py-3 flex items-center gap-3">
+                                    <div className="flex-1">
+                                        <label className="text-xs text-slate-500 block mb-1">Nome do Jogador ({player.position})</label>
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="text" 
+                                                value={player.name} 
+                                                onChange={(e) => updatePlayerName(player.id, e.target.value)}
+                                                className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm focus:border-emerald-500 outline-none"
+                                            />
+                                            <span className="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-600">{player.rating}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+            </div>
+        )}
+
         {view === 'career-mode' && (
             <div className="w-full max-w-2xl animate-fade-in">
                 {rtsStep === 'form' && (
@@ -617,21 +898,16 @@ export default function App() {
 
         {view === 'squad' && (
             <div className="animate-fade-in">
-                <Card title="Elenco Completo">
+                <Card title="Gestão do Elenco">
                     <div className="divide-y divide-slate-100">
                         {squad.sort((a,b) => b.rating - a.rating).map(player => (
                             <PlayerRow 
                                 key={player.id} 
                                 player={player} 
                                 showPrice
-                                actionButton={
-                                    <button 
-                                        onClick={() => handleSellPlayer(player)}
-                                        className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-md font-medium transition-colors border border-red-200 whitespace-nowrap"
-                                    >
-                                        Vender
-                                    </button>
-                                }
+                                onSell={handleInitiateSell}
+                                onLoan={handleLoan}
+                                onRenew={handleRenew}
                             />
                         ))}
                     </div>
