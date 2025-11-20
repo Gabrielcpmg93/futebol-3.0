@@ -64,11 +64,13 @@ const TeamSelection = ({ onSelect }: { onSelect: (team: Team) => void }) => {
 const Sidebar = ({ 
     currentView, 
     onChangeView, 
-    team 
+    team,
+    onLogout
 }: { 
     currentView: ViewState, 
     onChangeView: (v: ViewState) => void, 
-    team: Team 
+    team: Team,
+    onLogout: () => void
 }) => {
     const menuItems = [
         { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
@@ -104,7 +106,7 @@ const Sidebar = ({
             </nav>
             
             <div className="p-6 border-t border-slate-800">
-                 <button onClick={() => window.location.reload()} className="flex items-center gap-3 text-slate-400 hover:text-red-400 transition-colors w-full">
+                 <button onClick={onLogout} className="flex items-center gap-3 text-slate-400 hover:text-red-400 transition-colors w-full">
                     <LogOut size={20} />
                     <span>Sair</span>
                  </button>
@@ -113,7 +115,17 @@ const Sidebar = ({
     );
 };
 
-const MobileNav = ({ currentView, onChangeView, team }: { currentView: ViewState, onChangeView: (v: ViewState) => void, team: Team }) => {
+const MobileNav = ({ 
+    currentView, 
+    onChangeView, 
+    team, 
+    onLogout 
+}: { 
+    currentView: ViewState, 
+    onChangeView: (v: ViewState) => void, 
+    team: Team,
+    onLogout: () => void 
+}) => {
     const menuItems = [
         { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
         { id: 'squad', label: 'Elenco', icon: Users },
@@ -141,7 +153,7 @@ const MobileNav = ({ currentView, onChangeView, team }: { currentView: ViewState
                     )
                 })}
                  <button 
-                    onClick={() => window.location.reload()} 
+                    onClick={onLogout} 
                     className="flex flex-col items-center justify-center w-16 gap-0.5 text-slate-400 hover:text-red-500"
                 >
                     <div className="p-1">
@@ -197,6 +209,16 @@ export default function App() {
     }
   };
 
+  const handleLogout = () => {
+    setSquad([]);
+    setMarket([]);
+    setMatchResult(null);
+    setUserTeam(null);
+    setView('select-team');
+    setBudget(50);
+    setIsSimulating(false);
+  };
+
   // Handlers
   const handleSellPlayer = (player: Player) => {
       const sellValue = player.value * 0.9; // Sell for slightly less
@@ -232,17 +254,21 @@ export default function App() {
       if (result.draw) setBudget(prev => prev + 1.0);
   };
 
-  if (view === 'select-team') {
+  // Safely render TeamSelection if view is correct OR if userTeam is null (fallback to prevent white screen)
+  if (view === 'select-team' || !userTeam) {
     return <TeamSelection onSelect={handleTeamSelect} />;
   }
-
-  if (!userTeam) return null;
 
   const avgRating = (squad.reduce((acc, p) => acc + p.rating, 0) / (squad.length || 1)).toFixed(0);
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50">
-      <Sidebar currentView={view} onChangeView={setView} team={userTeam} />
+      <Sidebar 
+        currentView={view} 
+        onChangeView={setView} 
+        team={userTeam} 
+        onLogout={handleLogout}
+      />
       
       {/* Main Content Area with padding for mobile nav */}
       <main className="flex-1 p-4 pb-24 lg:p-8 overflow-y-auto h-screen scroll-smooth">
@@ -477,7 +503,12 @@ export default function App() {
 
       </main>
       
-      <MobileNav currentView={view} onChangeView={setView} team={userTeam} />
+      <MobileNav 
+        currentView={view} 
+        onChangeView={setView} 
+        team={userTeam} 
+        onLogout={handleLogout}
+      />
     </div>
   );
 }

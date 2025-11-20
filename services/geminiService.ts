@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, SchemaType } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { Player, Position, MatchResult, Team } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
