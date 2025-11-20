@@ -15,8 +15,10 @@ const LAST_NAMES = [
   "Nascimento", "Mendes", "Cardoso", "Ramos", "Teixeira", "Rocha", "Dias", "Moreira", "Correia", "Gonçalves"
 ];
 
-const ADJECTIVES = [
-  "rápido", "técnico", "forte", "habilidoso", "inteligente", "promissor", "decisivo", "versátil", "incansável", "criativo"
+const FICTIONAL_TEAMS = [
+  "União da Vila", "Real Futuro", "Dynamo City", "Atlético Várzea", "Sporting Leste", 
+  "Norte United", "Estrela do Sul", "Tigres Dourados", "Fênix FC", "Acadêmica Central",
+  "Brazuca Juniors", "Nova Era FC", "Leões da Serra", "Guardiões da Bola", "Trovão Azul"
 ];
 
 // Helper: Gera um delay para simular processamento e não ser instantâneo demais na UI
@@ -28,6 +30,10 @@ const generateName = () => {
   const first = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
   const last = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
   return `${first} ${last}`;
+};
+
+export const generateFictionalTeamName = () => {
+    return FICTIONAL_TEAMS[Math.floor(Math.random() * FICTIONAL_TEAMS.length)];
 };
 
 const getRandomNumber = (min: number, max: number) => {

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType } from './types';
-import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateScoutReport } from './services/geminiService';
+import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateScoutReport, generateFictionalTeamName } from './services/geminiService';
 import { Card } from './components/Card';
 import { PlayerRow } from './components/PlayerRow';
 import { 
@@ -187,6 +187,10 @@ export default function App() {
   const [sellingPlayer, setSellingPlayer] = useState<Player | null>(null);
   const [offers, setOffers] = useState<{team: string, value: number}[]>([]);
 
+  // Loan State
+  const [loaningPlayer, setLoaningPlayer] = useState<Player | null>(null);
+  const [loanOffers, setLoanOffers] = useState<{team: string, value: number}[]>([]);
+
   // Match State
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -303,17 +307,32 @@ export default function App() {
       alert(`Negócio fechado! ${sellingPlayer.name} vendido para ${offer.team} por $${offer.value.toFixed(1)}M.`);
   };
 
-  // 3. Loan
-  const handleLoan = (player: Player) => {
-      const loanFee = player.value * 0.15; // 15% loan fee
-      if (window.confirm(`Deseja emprestar ${player.name} por uma taxa de $${loanFee.toFixed(1)}M? Ele deixará o elenco.`)) {
-          setBudget(prev => prev + loanFee);
-          setSquad(prev => prev.filter(p => p.id !== player.id));
-          alert("Empréstimo realizado com sucesso!");
+  // 3. Initiate Loan (NEW)
+  const handleInitiateLoan = (player: Player) => {
+      setLoaningPlayer(player);
+      // Generate 2 fictional team offers
+      const offers = [
+          { team: generateFictionalTeamName(), value: player.value * 0.15 },
+          { team: generateFictionalTeamName(), value: player.value * 0.12 }
+      ];
+      // Ensure names are unique
+      if (offers[0].team === offers[1].team) {
+          offers[1].team = generateFictionalTeamName();
       }
+      setLoanOffers(offers);
   };
 
-  // 4. Renew
+  // 4. Confirm Loan (NEW)
+  const handleConfirmLoan = (offer: {team: string, value: number}) => {
+      if (!loaningPlayer) return;
+      setBudget(prev => prev + offer.value);
+      setSquad(prev => prev.filter(p => p.id !== loaningPlayer.id));
+      setLoaningPlayer(null);
+      setLoanOffers([]);
+      alert(`${loaningPlayer.name} foi emprestado ao ${offer.team} com sucesso! (+ $${offer.value.toFixed(1)}M)`);
+  };
+
+  // 5. Renew
   const handleRenew = (player: Player) => {
       const cost = player.value * 0.1; // 10% renewal cost
       if (budget < cost) {
@@ -324,6 +343,8 @@ export default function App() {
       if (window.confirm(`Renovar com ${player.name} por $${cost.toFixed(1)}M? (+50 semanas)`)) {
           setBudget(prev => prev - cost);
           setSquad(prev => prev.map(p => p.id === player.id ? { ...p, contractWeeks: p.contractWeeks + 50 } : p));
+          // New Feedback
+          alert(`Contrato de ${player.name} renovado com sucesso! Novo vínculo: ${player.contractWeeks + 50} semanas.`);
       }
   };
 
@@ -562,6 +583,52 @@ export default function App() {
                           className="text-slate-500 hover:text-slate-700 font-medium text-sm"
                       >
                           Cancelar Negociação
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* LOAN MODAL */}
+      {loaningPlayer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
+              <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+                  <div className="bg-blue-600 p-4 text-white">
+                      <h3 className="font-bold text-lg">Empréstimo: {loaningPlayer.name}</h3>
+                      <p className="text-blue-100 text-sm">Escolha o destino do jogador</p>
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <p className="text-slate-600 text-sm mb-2">Clubes interessados:</p>
+                      {loanOffers.map((offer, idx) => (
+                          <button 
+                              key={idx}
+                              onClick={() => handleConfirmLoan(offer)}
+                              className="w-full flex justify-between items-center p-4 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                          >
+                              <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-600 text-xs">
+                                      {offer.team.substring(0, 2).toUpperCase()}
+                                  </div>
+                                  <div className="text-left">
+                                      <span className="block font-bold text-slate-800">{offer.team}</span>
+                                      <span className="text-[10px] text-slate-500">Liga Secundária</span>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  <span className="block text-[10px] text-slate-500 uppercase">Taxa</span>
+                                  <span className="font-bold text-blue-600 group-hover:scale-110 transition-transform">
+                                      $ {offer.value.toFixed(1)}M
+                                  </span>
+                              </div>
+                          </button>
+                      ))}
+                  </div>
+                  <div className="bg-slate-50 p-4 border-t border-slate-100 text-center">
+                      <button 
+                          onClick={() => { setLoaningPlayer(null); setLoanOffers([]); }}
+                          className="text-slate-500 hover:text-slate-700 font-medium text-sm"
+                      >
+                          Cancelar Empréstimo
                       </button>
                   </div>
               </div>
@@ -906,7 +973,7 @@ export default function App() {
                                 player={player} 
                                 showPrice
                                 onSell={handleInitiateSell}
-                                onLoan={handleLoan}
+                                onLoan={handleInitiateLoan}
                                 onRenew={handleRenew}
                             />
                         ))}
