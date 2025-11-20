@@ -22,7 +22,9 @@ import {
     Calendar,
     Briefcase,
     MonitorPlay,
-    Zap
+    Zap,
+    Volume2,
+    VolumeX
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -276,6 +278,10 @@ export default function App() {
   const [matchEvents, setMatchEvents] = useState<any[]>([]);
   const [lastEventIndex, setLastEventIndex] = useState(-1);
 
+  // Audio State
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // Rumo ao Estrelato State
   const [rtsStep, setRtsStep] = useState<'form' | 'simulating' | 'offers'>('form');
   const [createdPlayer, setCreatedPlayer] = useState<{name: string, position: Position} | null>(null);
@@ -297,6 +303,35 @@ export default function App() {
       }));
       setLeagueTable(initialTable);
   };
+
+  // Audio Initialization
+  useEffect(() => {
+    const audio = new Audio('https://actions.google.com/sounds/v1/ambiences/stadium_crowd_cheering.ogg');
+    audio.loop = true;
+    audio.volume = 0.4;
+    audioRef.current = audio;
+
+    return () => {
+        audio.pause();
+        audioRef.current = null;
+    };
+  }, []);
+
+  // Manage Audio Playback
+  useEffect(() => {
+    if (isVisualMatch && soundEnabled && audioRef.current) {
+         const playPromise = audioRef.current.play();
+         if (playPromise !== undefined) {
+             playPromise.catch(error => {
+                 console.log("Autoplay prevented:", error);
+                 setSoundEnabled(false);
+             });
+         }
+    } else if (audioRef.current) {
+        audioRef.current.pause();
+    }
+  }, [isVisualMatch, soundEnabled]);
+
 
   // Initialization logic
   const handleTeamSelect = async (team: Team) => {
@@ -338,6 +373,7 @@ export default function App() {
     setContractOffers([]);
     // Reset Visual Sim
     setIsVisualMatch(false);
+    setSoundEnabled(false);
   };
 
   const handleSkipWeek = () => {
@@ -465,6 +501,7 @@ export default function App() {
       
       if (visual) {
           setIsVisualMatch(true);
+          setSoundEnabled(true); // Auto-enable sound on start (browser might block, but we try)
           setSimTime(0);
           setCurrentScore({ home: 0, away: 0 });
           initializeMatchPositions();
@@ -530,6 +567,7 @@ export default function App() {
   const finishMatch = (result: MatchResult, opponent: Team) => {
       setIsVisualMatch(false);
       setIsSimulating(false);
+      setSoundEnabled(false);
       
       // UPDATE TABLE LOGIC
       setLeagueTable(prevTable => {
@@ -1263,8 +1301,17 @@ export default function App() {
                                     </div>
                                     <span className="font-bold text-xl">{currentScore.home}</span>
                                 </div>
-                                <div className="bg-slate-800 px-3 py-1 rounded text-xs font-mono text-emerald-400 animate-pulse">
-                                    AO VIVO
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-slate-800 px-3 py-1 rounded text-xs font-mono text-emerald-400 animate-pulse">
+                                        AO VIVO
+                                    </div>
+                                    <button 
+                                        onClick={() => setSoundEnabled(!soundEnabled)}
+                                        className="p-2 hover:bg-slate-700 rounded-full transition-colors"
+                                        title={soundEnabled ? "Desativar Som" : "Ativar Som"}
+                                    >
+                                        {soundEnabled ? <Volume2 size={18} className="text-slate-300" /> : <VolumeX size={18} className="text-slate-500" />}
+                                    </button>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <span className="font-bold text-xl">{currentScore.away}</span>
