@@ -1,10 +1,24 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Player, Position, MatchResult, Team } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Prevent crash if API key is missing during initialization (common deploy issue)
+const apiKey = process.env.API_KEY || "fallback_key_to_prevent_crash";
+const ai = new GoogleGenAI({ apiKey });
 
 // Helper to generate a random ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
+
+// Helper to safely parse JSON that might contain Markdown code blocks
+const safeJsonParse = (text: string) => {
+  try {
+    // Remove markdown code blocks if present (e.g. ```json ... ```)
+    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanText);
+  } catch (e) {
+    console.error("JSON Parse Error:", e);
+    throw new Error("Failed to parse AI response");
+  }
+};
 
 export const generateSquadForTeam = async (teamName: string): Promise<Player[]> => {
   const model = 'gemini-2.5-flash';
@@ -34,7 +48,7 @@ export const generateSquadForTeam = async (teamName: string): Promise<Player[]> 
 
     if (!response.text) throw new Error("No data returned");
 
-    const rawPlayers = JSON.parse(response.text);
+    const rawPlayers = safeJsonParse(response.text);
     
     return rawPlayers.map((p: any) => ({
       id: generateId(),
@@ -49,8 +63,10 @@ export const generateSquadForTeam = async (teamName: string): Promise<Player[]> 
     console.error("Error generating squad:", error);
     // Fallback data if API fails
     return [
-        { id: '1', name: 'Jogador Genérico 1', position: Position.ATT, rating: 75, age: 22, value: 5, team: teamName },
-        { id: '2', name: 'Goleiro Genérico', position: Position.GK, rating: 70, age: 28, value: 2, team: teamName },
+        { id: '1', name: 'Atacante Base', position: Position.ATT, rating: 75, age: 22, value: 5, team: teamName },
+        { id: '2', name: 'Goleiro Base', position: Position.GK, rating: 70, age: 28, value: 2, team: teamName },
+        { id: '3', name: 'Zagueiro Base', position: Position.DEF, rating: 72, age: 25, value: 3, team: teamName },
+        { id: '4', name: 'Meia Base', position: Position.MID, rating: 74, age: 24, value: 4, team: teamName },
     ];
   }
 };
@@ -83,7 +99,7 @@ export const generateTransferMarket = async (): Promise<Player[]> => {
     });
 
     if (!response.text) throw new Error("No data returned");
-    const rawPlayers = JSON.parse(response.text);
+    const rawPlayers = safeJsonParse(response.text);
 
     return rawPlayers.map((p: any) => ({
       id: generateId(),
@@ -103,7 +119,7 @@ export const simulateMatchWithGemini = async (myTeam: Team, mySquad: Player[], o
   const model = 'gemini-2.5-flash';
   
   // Calculate average rating
-  const avgRating = mySquad.reduce((acc, p) => acc + p.rating, 0) / mySquad.length;
+  const avgRating = mySquad.reduce((acc, p) => acc + p.rating, 0) / (mySquad.length || 1);
   const myTopPlayers = mySquad.sort((a, b) => b.rating - a.rating).slice(0, 3).map(p => p.name).join(", ");
 
   const prompt = `
@@ -149,7 +165,7 @@ export const simulateMatchWithGemini = async (myTeam: Team, mySquad: Player[], o
     });
 
     if (!response.text) throw new Error("No match data");
-    const data = JSON.parse(response.text);
+    const data = safeJsonParse(response.text);
 
     const isWin = data.homeScore > data.awayScore;
     const isDraw = data.homeScore === data.awayScore;
@@ -173,7 +189,7 @@ export const simulateMatchWithGemini = async (myTeam: Team, mySquad: Player[], o
       homeScore: myScore,
       awayScore: oppScore,
       events: [],
-      summary: "Simulação offline realizada devido a erro de conexão.",
+      summary: "Simulação offline realizada (Erro de API ou Conexão).",
       opponentName: opponent.name,
       win: myScore > oppScore,
       draw: myScore === oppScore

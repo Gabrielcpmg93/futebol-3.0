@@ -69,7 +69,7 @@ const Sidebar = ({
 }: { 
     currentView: ViewState, 
     onChangeView: (v: ViewState) => void, 
-    team: Team,
+    team: Team | null,
     onLogout: () => void
 }) => {
     const menuItems = [
@@ -78,6 +78,8 @@ const Sidebar = ({
         { id: 'market', label: 'Transferências', icon: ArrowLeftRight },
         { id: 'match', label: 'Jogar', icon: PlayCircle },
     ];
+
+    if (!team) return null;
 
     return (
         <div className="hidden lg:flex w-64 bg-slate-900 text-white flex-col h-screen sticky top-0 shrink-0">
@@ -118,12 +120,11 @@ const Sidebar = ({
 const MobileNav = ({ 
     currentView, 
     onChangeView, 
-    team, 
     onLogout 
 }: { 
     currentView: ViewState, 
     onChangeView: (v: ViewState) => void, 
-    team: Team,
+    team: Team | null,
     onLogout: () => void 
 }) => {
     const menuItems = [
@@ -134,7 +135,7 @@ const MobileNav = ({
     ];
 
     return (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 pb-2 pt-2 px-4 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 pb-2 pt-2 px-4 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] safe-area-bottom">
             <div className="flex justify-around items-center h-14">
                 {menuItems.map((item) => {
                     const Icon = item.icon;
@@ -204,12 +205,15 @@ export default function App() {
         generateTransferMarket().then(setMarket);
     } catch (error) {
         console.error("Failed to start game", error);
+        alert("Erro ao iniciar o jogo. Verifique a conexão ou a chave da API.");
+        setUserTeam(null);
     } finally {
         setLoading(false);
     }
   };
 
   const handleLogout = () => {
+    // Full reset state
     setSquad([]);
     setMarket([]);
     setMatchResult(null);
@@ -412,7 +416,7 @@ export default function App() {
             </div>
         )}
 
-        {view === 'match' && (
+        {view === 'match' && userTeam && (
             <div className="max-w-3xl mx-auto animate-fade-in">
                 {!isSimulating && !matchResult && (
                     <div className="text-center py-12 md:py-20">
