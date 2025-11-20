@@ -66,6 +66,8 @@ export const generateSquadForTeam = async (teamName: string): Promise<Player[]> 
       const rating = getRandomNumber(cfg.minOvr, cfg.maxOvr);
       // Valor baseado no rating (exponencial simples)
       const value = parseFloat(((rating - 60) * 0.5 + (Math.random() * 2)).toFixed(1));
+      // Salário baseado no rating (aprox 1/100 do valor ou logica simples)
+      const salary = Math.floor(value * 10 + getRandomNumber(5, 20));
       
       squad.push({
         id: generateId(),
@@ -75,7 +77,9 @@ export const generateSquadForTeam = async (teamName: string): Promise<Player[]> 
         age: getRandomNumber(17, 34),
         value: Math.max(0.5, value),
         contractWeeks: getRandomNumber(20, 60),
-        team: teamName
+        team: teamName,
+        salary: salary,
+        isLoaned: false
       });
     }
   });
@@ -93,6 +97,7 @@ export const generateTransferMarket = async (): Promise<Player[]> => {
     const pos = positions[Math.floor(Math.random() * positions.length)];
     const rating = getRandomNumber(68, 88);
     const value = parseFloat(((rating - 60) * 0.6 + (Math.random() * 3)).toFixed(1));
+    const salary = Math.floor(value * 10 + getRandomNumber(5, 20));
 
     players.push({
       id: generateId(),
@@ -102,7 +107,9 @@ export const generateTransferMarket = async (): Promise<Player[]> => {
       age: getRandomNumber(18, 32),
       value: Math.max(1, value),
       contractWeeks: getRandomNumber(30, 80),
-      team: "Free Agent"
+      team: "Free Agent",
+      salary: salary,
+      isLoaned: false
     });
   }
 

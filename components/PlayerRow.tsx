@@ -35,9 +35,14 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
   return (
     <div className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border-b border-slate-100 last:border-0">
       <div className="flex items-center gap-3 md:gap-4 overflow-hidden flex-1">
-        <div className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-slate-200 text-slate-500`}>
+        <div className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex-shrink-0 flex items-center justify-center bg-slate-200 text-slate-500 relative`}>
            <User size={18} className="md:hidden" />
            <User size={20} className="hidden md:block" />
+           {player.isLoaned && (
+               <div className="absolute -top-1 -right-1 bg-blue-600 text-white text-[8px] font-bold px-1 rounded-full border border-white" title="Emprestado">
+                   EMP
+               </div>
+           )}
         </div>
         <div className="min-w-0">
           <p className="font-semibold text-slate-800 text-sm md:text-base truncate pr-2">{player.name}</p>
@@ -49,6 +54,11 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
             <span className="hidden xs:flex items-center text-slate-500 text-[10px] md:text-xs">
               {player.age} anos
             </span>
+            {player.salary && (
+                <span className="hidden md:flex items-center text-emerald-600 text-[10px] md:text-xs font-medium">
+                   ${player.salary}k/sem
+                </span>
+            )}
           </div>
         </div>
       </div>
@@ -59,7 +69,7 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
         {onRenew && (
             <div className="hidden sm:block text-center w-20">
                 <p className="text-[9px] text-slate-500 uppercase font-bold">Contrato</p>
-                <p className={`font-bold text-xs ${player.contractWeeks < 10 ? 'text-red-600' : 'text-slate-700'}`}>
+                <p className={`font-bold text-xs ${player.contractWeeks < 10 ? 'text-red-600' : player.isLoaned ? 'text-blue-600' : 'text-slate-700'}`}>
                     {player.contractWeeks} sem.
                 </p>
             </div>
@@ -83,7 +93,7 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
 
         {/* Action Buttons Group */}
         <div className="flex gap-1">
-            {onSell && (
+            {onSell && !player.isLoaned && (
                 <button 
                     onClick={() => onSell(player)}
                     className="text-[10px] md:text-xs bg-red-50 text-red-600 hover:bg-red-100 px-2 py-1.5 rounded border border-red-200 transition-colors"
@@ -92,7 +102,7 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
                     Vender
                 </button>
             )}
-            {onLoan && (
+            {onLoan && !player.isLoaned && (
                 <button 
                     onClick={() => onLoan(player)}
                     className="text-[10px] md:text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1.5 rounded border border-blue-200 transition-colors"
@@ -101,7 +111,7 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
                     Emprestar
                 </button>
             )}
-            {onRenew && (
+            {onRenew && !player.isLoaned && (
                 <button 
                     onClick={() => onRenew(player)}
                     className="text-[10px] md:text-xs bg-green-50 text-green-600 hover:bg-green-100 px-2 py-1.5 rounded border border-green-200 transition-colors"
@@ -110,6 +120,12 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
                     Renovar
                 </button>
             )}
+             {/* Emprestado label if buttons are missing but it is loan */}
+             {onRenew && player.isLoaned && (
+                 <span className="text-[10px] md:text-xs bg-blue-100 text-blue-700 px-2 py-1.5 rounded border border-blue-200 font-bold">
+                    Empréstimo
+                 </span>
+             )}
             {actionButton && actionButton}
         </div>
       </div>

@@ -15,6 +15,8 @@ export interface Player {
   value: number; // In millions
   contractWeeks: number; // Weeks remaining
   team?: string;
+  salary?: number; // Weekly salary in thousands (e.g. 150 = 150k)
+  isLoaned?: boolean; // If true, player is on loan
 }
 
 export interface Team {
@@ -22,7 +24,6 @@ export interface Team {
   name: string;
   primaryColor: string;
   secondaryColor: string;
-  logoUrl?: string;
 }
 
 export interface TeamStats {

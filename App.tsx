@@ -17,14 +17,14 @@ import {
     ListOrdered,
     Settings,
     Award,
-    Edit3,
-    Save,
-    Calendar,
     Briefcase,
     MonitorPlay,
     Zap,
     Volume2,
-    VolumeX
+    VolumeX,
+    Handshake,
+    CheckCircle,
+    Calendar
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -254,11 +254,15 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [trophies, setTrophies] = useState<TrophyType[]>([]);
   
+  // Buying / Negotiating State
+  const [negotiationPlayer, setNegotiationPlayer] = useState<Player | null>(null);
+  const [negotiationOffer, setNegotiationOffer] = useState<{salary: number, weeks: number}>({ salary: 50, weeks: 52 });
+  
   // Selling State
   const [sellingPlayer, setSellingPlayer] = useState<Player | null>(null);
   const [offers, setOffers] = useState<{team: string, value: number}[]>([]);
 
-  // Loan State
+  // Loan OUT State
   const [loaningPlayer, setLoaningPlayer] = useState<Player | null>(null);
   const [loanOffers, setLoanOffers] = useState<{team: string, value: number}[]>([]);
 
@@ -395,7 +399,8 @@ export default function App() {
           contractWeeks: p.contractWeeks - 1
       })).filter(p => {
           if (p.contractWeeks <= 0) {
-              alert(`O contrato de ${p.name} expirou e ele deixou o clube!`);
+              const reason = p.isLoaned ? "O empréstimo acabou" : "O contrato expirou";
+              alert(`${reason}: ${p.name} deixou o clube!`);
               return false;
           }
           return true;
@@ -403,6 +408,61 @@ export default function App() {
 
       setSquad(updatedSquad);
       alert("Semana pulada! Contratos atualizados.");
+  };
+
+  // --- Buying / Negotiation Logic ---
+  
+  const handleOpenNegotiation = (player: Player) => {
+      setNegotiationPlayer(player);
+      // Suggest reasonable defaults based on player value
+      const suggestedSalary = player.salary || Math.floor(player.value * 10 + 20);
+      setNegotiationOffer({ salary: suggestedSalary, weeks: 52 });
+  };
+
+  const handleConfirmPurchase = () => {
+      if (!negotiationPlayer) return;
+      
+      // Simple validation: Must pay transfer fee
+      if (budget < negotiationPlayer.value) {
+          alert("Orçamento insuficiente para pagar a taxa de transferência!");
+          return;
+      }
+
+      setBudget(prev => prev - negotiationPlayer.value);
+      setMarket(prev => prev.filter(p => p.id !== negotiationPlayer.id));
+      setSquad(prev => [...prev, { 
+          ...negotiationPlayer, 
+          team: userTeam?.name, 
+          contractWeeks: negotiationOffer.weeks,
+          salary: negotiationOffer.salary,
+          isLoaned: false
+      }]);
+
+      setNegotiationPlayer(null);
+      alert(`Contratado! ${negotiationPlayer.name} se juntou ao time.`);
+  };
+
+  const handleLoanIn = (player: Player) => {
+      // Loan fee is usually smaller, say 10% of value
+      const loanFee = player.value * 0.1;
+      
+      if (budget < loanFee) {
+          alert(`Orçamento insuficiente! Taxa de empréstimo: $${loanFee.toFixed(1)}M`);
+          return;
+      }
+
+      if (window.confirm(`Contratar ${player.name} por empréstimo de 12 semanas? Custo: $${loanFee.toFixed(1)}M`)) {
+        setBudget(prev => prev - loanFee);
+        setMarket(prev => prev.filter(p => p.id !== player.id));
+        setSquad(prev => [...prev, { 
+            ...player, 
+            team: userTeam?.name, 
+            contractWeeks: 12, // Fixed 12 weeks
+            salary: player.salary || 50,
+            isLoaned: true
+        }]);
+        alert(`${player.name} contratado por empréstimo! (12 semanas)`);
+      }
   };
 
   // --- Squad Management Handlers ---
@@ -468,16 +528,6 @@ export default function App() {
       }
   };
 
-  const handleBuyPlayer = (player: Player) => {
-      if (budget >= player.value) {
-          setBudget(prev => prev - player.value);
-          setMarket(prev => prev.filter(p => p.id !== player.id));
-          setSquad(prev => [...prev, { ...player, team: userTeam?.name, contractWeeks: 52 }]);
-      } else {
-          alert("Fundos insuficientes!");
-      }
-  };
-
   // --- Match Logic ---
 
   const initializeMatchPositions = () => {
@@ -511,8 +561,7 @@ export default function App() {
           id: opponentStats.id,
           name: opponentStats.name,
           primaryColor: 'bg-slate-700', // Default for fictional
-          secondaryColor: 'text-white',
-          logoUrl: undefined
+          secondaryColor: 'text-white'
       };
       
       // Generate some color variation for fictional teams based on name hash (simple)
@@ -853,6 +902,87 @@ export default function App() {
           </div>
       )}
 
+      {/* BUY NEGOTIATION MODAL */}
+      {negotiationPlayer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
+              <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+                  <div className="bg-emerald-700 p-4 text-white flex justify-between items-center">
+                      <div>
+                          <h3 className="font-bold text-lg">Negociar Contrato</h3>
+                          <p className="text-emerald-100 text-xs uppercase tracking-wide">{negotiationPlayer.name}</p>
+                      </div>
+                      <Handshake size={28} className="text-emerald-200" />
+                  </div>
+                  
+                  <div className="p-6 space-y-6">
+                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                           <span className="text-sm text-slate-500 font-medium">Taxa de Transferência</span>
+                           <span className="text-lg font-bold text-emerald-600">$ {negotiationPlayer.value.toFixed(1)}M</span>
+                      </div>
+
+                      <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-2">
+                              Salário Semanal ($ mil)
+                          </label>
+                          <div className="flex items-center gap-4">
+                              <input 
+                                  type="range" 
+                                  min="10" 
+                                  max="500" 
+                                  step="5"
+                                  value={negotiationOffer.salary}
+                                  onChange={(e) => setNegotiationOffer(prev => ({...prev, salary: parseInt(e.target.value)}))}
+                                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                              />
+                              <div className="bg-white border border-slate-300 w-24 text-center py-2 rounded-lg font-bold text-slate-800">
+                                  ${negotiationOffer.salary}k
+                              </div>
+                          </div>
+                      </div>
+
+                      <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-2">
+                              Duração do Contrato (Semanas)
+                          </label>
+                          <div className="flex items-center gap-4">
+                              <input 
+                                  type="range" 
+                                  min="10" 
+                                  max="156" 
+                                  step="2"
+                                  value={negotiationOffer.weeks}
+                                  onChange={(e) => setNegotiationOffer(prev => ({...prev, weeks: parseInt(e.target.value)}))}
+                                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                              />
+                              <div className="bg-white border border-slate-300 w-24 text-center py-2 rounded-lg font-bold text-slate-800">
+                                  {negotiationOffer.weeks}
+                              </div>
+                          </div>
+                      </div>
+                      
+                      <div className="pt-2">
+                           <button 
+                              onClick={handleConfirmPurchase}
+                              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md"
+                           >
+                               <CheckCircle size={20} />
+                               Assinar Contrato
+                           </button>
+                      </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 border-t border-slate-100 text-center">
+                      <button 
+                          onClick={() => setNegotiationPlayer(null)}
+                          className="text-slate-500 hover:text-slate-700 font-medium text-sm"
+                      >
+                          Cancelar
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {view !== 'career-mode' && (
           <Sidebar 
             currentView={view} 
@@ -1118,12 +1248,21 @@ export default function App() {
                                     player={player} 
                                     showPrice={true}
                                     actionButton={
-                                        <button 
-                                            onClick={() => handleBuyPlayer(player)}
-                                            className="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs md:text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
-                                        >
-                                            Comprar
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => handleLoanIn(player)}
+                                                className="bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-100 transition-colors shadow-sm"
+                                                title="Empréstimo (12 sem.)"
+                                            >
+                                                Emp. (12 sem.)
+                                            </button>
+                                            <button 
+                                                onClick={() => handleOpenNegotiation(player)}
+                                                className="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs md:text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                                            >
+                                                Comprar
+                                            </button>
+                                        </div>
                                     }
                                 />
                             ))
