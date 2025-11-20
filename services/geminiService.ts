@@ -18,7 +18,8 @@ const LAST_NAMES = [
 const FICTIONAL_TEAMS = [
   "União da Vila", "Real Futuro", "Dynamo City", "Atlético Várzea", "Sporting Leste", 
   "Norte United", "Estrela do Sul", "Tigres Dourados", "Fênix FC", "Acadêmica Central",
-  "Brazuca Juniors", "Nova Era FC", "Leões da Serra", "Guardiões da Bola", "Trovão Azul"
+  "Brazuca Juniors", "Nova Era FC", "Leões da Serra", "Guardiões da Bola", "Trovão Azul",
+  "Inter do Bairro", "Cometa FC", "Gigantes da Norte", "Samba FC", "Imperial United"
 ];
 
 // Helper: Gera um delay para simular processamento e não ser instantâneo demais na UI
@@ -34,6 +35,12 @@ const generateName = () => {
 
 export const generateFictionalTeamName = () => {
     return FICTIONAL_TEAMS[Math.floor(Math.random() * FICTIONAL_TEAMS.length)];
+};
+
+export const getFictionalLeagueNames = (count: number): string[] => {
+    // Embaralha e pega 'count' nomes únicos
+    const shuffled = [...FICTIONAL_TEAMS].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
 };
 
 const getRandomNumber = (min: number, max: number) => {

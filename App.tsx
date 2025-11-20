@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType } from './types';
-import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateScoutReport, generateFictionalTeamName } from './services/geminiService';
+import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateScoutReport, generateFictionalTeamName, getFictionalLeagueNames } from './services/geminiService';
 import { Card } from './components/Card';
 import { PlayerRow } from './components/PlayerRow';
 import { 
@@ -269,6 +269,7 @@ export default function App() {
   
   // 2D Match Simulation State
   const [isVisualMatch, setIsVisualMatch] = useState(false);
+  const [preparingVisualMatch, setPreparingVisualMatch] = useState(false); // To handle loading state audio
   const [simTime, setSimTime] = useState(0);
   const [currentOpponent, setCurrentOpponent] = useState<Team | null>(null);
   const [currentScore, setCurrentScore] = useState({ home: 0, away: 0 });
@@ -288,20 +289,25 @@ export default function App() {
   const [scoutText, setScoutText] = useState<string>("");
   const [contractOffers, setContractOffers] = useState<Team[]>([]);
 
-  // Logic to initialize table
-  const initializeTable = () => {
-      const initialTable: TeamStats[] = BRAZILIAN_TEAMS.map(t => ({
-          id: t.id,
-          name: t.name,
-          points: 0,
-          played: 0,
-          won: 0,
-          drawn: 0,
-          lost: 0,
-          gf: 0,
-          ga: 0
+  // Logic to initialize table with FICTIONAL TEAMS + USER TEAM
+  const initializeTable = (selectedTeam: Team) => {
+      const fictionalNames = getFictionalLeagueNames(11); // Get 11 random fictional team names
+      
+      // 1. User Team
+      const userStats: TeamStats = {
+          id: selectedTeam.id,
+          name: selectedTeam.name,
+          points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0
+      };
+
+      // 2. Fictional Opponents
+      const opponentStats: TeamStats[] = fictionalNames.map((name, index) => ({
+          id: `fictional-${index}`,
+          name: name,
+          points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0
       }));
-      setLeagueTable(initialTable);
+
+      setLeagueTable([userStats, ...opponentStats]);
   };
 
   // Audio Initialization
@@ -310,6 +316,9 @@ export default function App() {
     audio.loop = true;
     audio.volume = 0.4;
     audioRef.current = audio;
+    
+    // Try to load
+    audio.load();
 
     return () => {
         audio.pause();
@@ -319,18 +328,19 @@ export default function App() {
 
   // Manage Audio Playback
   useEffect(() => {
-    if (isVisualMatch && soundEnabled && audioRef.current) {
+    const shouldPlay = (isVisualMatch || preparingVisualMatch) && soundEnabled;
+    
+    if (shouldPlay && audioRef.current) {
          const playPromise = audioRef.current.play();
          if (playPromise !== undefined) {
              playPromise.catch(error => {
-                 console.log("Autoplay prevented:", error);
-                 setSoundEnabled(false);
+                 console.log("Autoplay prevented/interrupted (normal in some flows):", error);
              });
          }
-    } else if (audioRef.current) {
+    } else if (!shouldPlay && audioRef.current) {
         audioRef.current.pause();
     }
-  }, [isVisualMatch, soundEnabled]);
+  }, [isVisualMatch, preparingVisualMatch, soundEnabled]);
 
 
   // Initialization logic
@@ -340,7 +350,7 @@ export default function App() {
         const players = await generateSquadForTeam(team.name);
         setUserTeam(team);
         setSquad(players);
-        initializeTable();
+        initializeTable(team); // Pass team to init table
         setView('dashboard');
         
         // Pre-fetch market in background
@@ -373,6 +383,7 @@ export default function App() {
     setContractOffers([]);
     // Reset Visual Sim
     setIsVisualMatch(false);
+    setPreparingVisualMatch(false);
     setSoundEnabled(false);
   };
 
@@ -398,13 +409,14 @@ export default function App() {
 
   const handleInitiateSell = (player: Player) => {
       setSellingPlayer(player);
-      const potentialTeams = BRAZILIAN_TEAMS.filter(t => t.name !== userTeam?.name);
-      const randomTeams = potentialTeams.sort(() => 0.5 - Math.random()).slice(0, 3);
+      // Offers from fictional teams in the current league context would be better, 
+      // but for now random fictional names from service is fine.
+      const potentialNames = getFictionalLeagueNames(3);
       
-      const newOffers = randomTeams.map(team => {
+      const newOffers = potentialNames.map(name => {
           const variation = (Math.random() * 0.35) - 0.15;
           return {
-              team: team.name,
+              team: name,
               value: player.value * (1 + variation)
           };
       });
@@ -487,10 +499,41 @@ export default function App() {
 
   const prepareMatch = async (visual: boolean) => {
       if (!userTeam) return;
+
+      // Pick random opponent FROM LEAGUE TABLE (not user team)
+      const potentialOpponents = leagueTable.filter(t => t.id !== userTeam.id);
+      if (potentialOpponents.length === 0) return;
       
-      // Pick random opponent
-      const potentialOpponents = BRAZILIAN_TEAMS.filter(t => t.id !== userTeam.id);
-      const opponent = potentialOpponents[Math.floor(Math.random() * potentialOpponents.length)];
+      const opponentStats = potentialOpponents[Math.floor(Math.random() * potentialOpponents.length)];
+      
+      // Reconstruct Team object for visual match (give fictional teams random colors if needed)
+      const opponent: Team = {
+          id: opponentStats.id,
+          name: opponentStats.name,
+          primaryColor: 'bg-slate-700', // Default for fictional
+          secondaryColor: 'text-white',
+          logoUrl: undefined
+      };
+      
+      // Generate some color variation for fictional teams based on name hash (simple)
+      const colors = ['bg-red-700', 'bg-blue-700', 'bg-green-700', 'bg-yellow-600', 'bg-purple-700', 'bg-orange-600', 'bg-teal-700'];
+      const colorIndex = opponentStats.name.length % colors.length;
+      opponent.primaryColor = colors[colorIndex];
+
+
+      // ** CRITICAL FIX FOR MOBILE AUDIO **
+      // Unlock audio immediately on user click
+      if (visual) {
+          setPreparingVisualMatch(true); // Prevent useEffect from pausing
+          setSoundEnabled(true);
+          
+          if (audioRef.current) {
+              audioRef.current.volume = 0.4;
+              // Try to play. This catches the "User Activation" token.
+              audioRef.current.play().catch(e => console.warn("Audio unlock warning:", e));
+          }
+      }
+      
       setCurrentOpponent(opponent);
 
       // Pre-calculate Result
@@ -501,14 +544,12 @@ export default function App() {
       
       if (visual) {
           setIsVisualMatch(true);
-          setSoundEnabled(true); // Auto-enable sound on start (browser might block, but we try)
           setSimTime(0);
           setCurrentScore({ home: 0, away: 0 });
           initializeMatchPositions();
           setLastEventIndex(-1);
-          // Simulation will be handled by useEffect
+          setPreparingVisualMatch(false); // Handover to normal visual match logic
       } else {
-          // Quick Sim - Finish Immediately
           finishMatch(result, opponent);
       }
   };
@@ -567,6 +608,7 @@ export default function App() {
   const finishMatch = (result: MatchResult, opponent: Team) => {
       setIsVisualMatch(false);
       setIsSimulating(false);
+      setPreparingVisualMatch(false);
       setSoundEnabled(false);
       
       // UPDATE TABLE LOGIC
@@ -695,7 +737,7 @@ export default function App() {
         };
         setUserTeam(team);
         setSquad([newPlayer, ...players]);
-        initializeTable();
+        initializeTable(team); // Pass team
         setView('dashboard');
         generateTransferMarket().then(setMarket);
       } catch (error) {
@@ -964,6 +1006,133 @@ export default function App() {
             </div>
         )}
 
+        {view === 'standings' && (
+            <div className="animate-fade-in">
+                <Card title="Tabela de Classificação">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left text-slate-600">
+                            <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th className="px-4 py-3">#</th>
+                                    <th className="px-4 py-3">Time</th>
+                                    <th className="px-4 py-3 text-center">PTS</th>
+                                    <th className="px-4 py-3 text-center hidden md:table-cell">J</th>
+                                    <th className="px-4 py-3 text-center hidden md:table-cell">V</th>
+                                    <th className="px-4 py-3 text-center hidden md:table-cell">E</th>
+                                    <th className="px-4 py-3 text-center hidden md:table-cell">D</th>
+                                    <th className="px-4 py-3 text-center hidden sm:table-cell">GP</th>
+                                    <th className="px-4 py-3 text-center hidden sm:table-cell">GC</th>
+                                    <th className="px-4 py-3 text-center hidden sm:table-cell">SG</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {leagueTable.map((team, index) => (
+                                    <tr 
+                                        key={team.id} 
+                                        className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors ${team.id === userTeam?.id ? 'bg-emerald-50 hover:bg-emerald-100' : ''}`}
+                                    >
+                                        <td className="px-4 py-3 font-medium text-slate-400">
+                                            {index < 4 ? <span className="text-blue-500 font-bold">{index + 1}</span> : 
+                                             index >= leagueTable.length - 4 ? <span className="text-red-500 font-bold">{index + 1}</span> : 
+                                             index + 1}
+                                        </td>
+                                        <td className={`px-4 py-3 font-medium ${team.id === userTeam?.id ? 'text-emerald-700 font-bold' : 'text-slate-800'}`}>
+                                            {team.name}
+                                        </td>
+                                        <td className="px-4 py-3 text-center font-bold text-slate-800">{team.points}</td>
+                                        <td className="px-4 py-3 text-center hidden md:table-cell">{team.played}</td>
+                                        <td className="px-4 py-3 text-center hidden md:table-cell text-emerald-600">{team.won}</td>
+                                        <td className="px-4 py-3 text-center hidden md:table-cell text-amber-600">{team.drawn}</td>
+                                        <td className="px-4 py-3 text-center hidden md:table-cell text-red-600">{team.lost}</td>
+                                        <td className="px-4 py-3 text-center hidden sm:table-cell">{team.gf}</td>
+                                        <td className="px-4 py-3 text-center hidden sm:table-cell">{team.ga}</td>
+                                        <td className="px-4 py-3 text-center hidden sm:table-cell font-bold">{team.gf - team.ga}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            </div>
+        )}
+
+        {view === 'squad' && (
+             <div className="animate-fade-in space-y-6">
+                 <Card 
+                    title="Elenco Atual" 
+                    action={
+                        <div className="text-xs text-slate-500 font-normal">
+                            Média Geral: <strong className="text-slate-800">{avgRating}</strong>
+                        </div>
+                    }
+                 >
+                    <div className="space-y-1">
+                        <div className="bg-slate-50 p-2 rounded text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 grid grid-cols-[1fr_auto] gap-4">
+                             <span>Jogador</span>
+                             <div className="flex gap-6 mr-16">
+                                 <span className="hidden sm:inline w-20 text-center">Contrato</span>
+                                 <span className="w-[30px] text-center">OVR</span>
+                                 <span className="w-16 md:w-24 text-right">Valor</span>
+                             </div>
+                        </div>
+                        {squad.sort((a, b) => b.rating - a.rating).map((player) => (
+                            <PlayerRow 
+                                key={player.id} 
+                                player={player} 
+                                showPrice={true}
+                                onSell={handleInitiateSell}
+                                onLoan={handleInitiateLoan}
+                                onRenew={handleRenew}
+                            />
+                        ))}
+                    </div>
+                 </Card>
+             </div>
+        )}
+
+        {view === 'market' && (
+             <div className="animate-fade-in space-y-6">
+                 <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-slate-800">Mercado da Bola</h2>
+                    <button 
+                        onClick={() => {
+                            setMarket([]);
+                            generateTransferMarket().then(setMarket);
+                        }}
+                        className="text-sm text-emerald-600 hover:underline"
+                    >
+                        Atualizar Lista
+                    </button>
+                 </div>
+
+                 <Card>
+                    <div className="space-y-1">
+                        {market.length === 0 ? (
+                            <div className="text-center py-8 text-slate-500">
+                                Buscando jogadores disponíveis...
+                            </div>
+                        ) : (
+                            market.map((player) => (
+                                <PlayerRow 
+                                    key={player.id} 
+                                    player={player} 
+                                    showPrice={true}
+                                    actionButton={
+                                        <button 
+                                            onClick={() => handleBuyPlayer(player)}
+                                            className="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs md:text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                                        >
+                                            Comprar
+                                        </button>
+                                    }
+                                />
+                            ))
+                        )}
+                    </div>
+                 </Card>
+             </div>
+        )}
+
         {view === 'trophies' && (
             <div className="animate-fade-in">
                 <div className="flex justify-between items-center mb-6">
@@ -1048,220 +1217,6 @@ export default function App() {
             </div>
         )}
 
-        {view === 'career-mode' && (
-            <div className="w-full max-w-2xl animate-fade-in">
-                {rtsStep === 'form' && (
-                    <div className="bg-slate-800 p-6 md:p-10 rounded-2xl shadow-2xl border border-slate-700">
-                        <div className="text-center mb-8">
-                            <Star size={48} className="text-yellow-400 mx-auto mb-4" />
-                            <h2 className="text-3xl font-bold text-white mb-2">Crie sua Lenda</h2>
-                            <p className="text-slate-400">Antes do estrelato, você precisa provar seu valor nos campos de terra.</p>
-                        </div>
-                        
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const formData = new FormData(e.currentTarget);
-                            handleAmateurMatch(
-                                formData.get('name') as string,
-                                formData.get('position') as Position
-                            );
-                        }} className="space-y-6">
-                            <div>
-                                <label className="block text-slate-300 text-sm font-bold mb-2">Nome do Jogador</label>
-                                <input required name="name" type="text" placeholder="Ex: Allejo" className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-slate-300 text-sm font-bold mb-2">Posição</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {Object.values(Position).map((pos) => (
-                                        <label key={pos} className="cursor-pointer">
-                                            <input type="radio" name="position" value={pos} required className="peer sr-only" />
-                                            <div className="text-center p-3 rounded-lg border border-slate-600 bg-slate-900 text-slate-400 peer-checked:bg-emerald-600 peer-checked:text-white peer-checked:border-emerald-500 transition-all">
-                                                {pos}
-                                            </div>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-900/20 transition-transform hover:scale-[1.02] mt-4">
-                                Jogar Partida Amadora
-                            </button>
-                            
-                            <button type="button" onClick={handleLogout} className="w-full text-slate-500 hover:text-slate-300 text-sm">
-                                Cancelar e Voltar
-                            </button>
-                        </form>
-                    </div>
-                )}
-
-                {rtsStep === 'simulating' && (
-                    <div className="text-center py-12">
-                         <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-500 mx-auto mb-6"></div>
-                         <h3 className="text-2xl font-bold text-white mb-2">Jogando a Final do Amador...</h3>
-                         <p className="text-slate-400">Olheiros de grandes clubes estão na arquibancada.</p>
-                    </div>
-                )}
-
-                {rtsStep === 'offers' && (
-                    <div className="space-y-8">
-                        <div className="text-center">
-                            <h2 className="text-3xl font-bold text-white mb-4">Parabéns, Craque!</h2>
-                            <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 inline-block max-w-xl">
-                                <p className="text-emerald-400 italic text-lg">"{scoutText}"</p>
-                            </div>
-                            <p className="text-slate-400 mt-6">Você recebeu 3 propostas de clubes profissionais.</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {contractOffers.map((team, idx) => (
-                                <button 
-                                    key={team.id}
-                                    onClick={() => handleAcceptOffer(team)}
-                                    className="bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 hover:border-emerald-500 p-6 rounded-xl flex flex-col items-center gap-4 transition-all group"
-                                >
-                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shadow-lg ${team.primaryColor} ${team.secondaryColor}`}>
-                                        {team.name.substring(0, 3).toUpperCase()}
-                                    </div>
-                                    <div className="text-center">
-                                        <h3 className="text-white font-bold text-lg group-hover:text-emerald-400">{team.name}</h3>
-                                        <span className="text-xs text-slate-500 uppercase font-bold">Contrato Profissional</span>
-                                    </div>
-                                    {team.id === 'cru' && (
-                                        <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">Recomendado</span>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
-        )}
-
-        {view === 'squad' && (
-            <div className="animate-fade-in">
-                <Card title="Gestão do Elenco">
-                    <div className="divide-y divide-slate-100">
-                        {squad.sort((a,b) => b.rating - a.rating).map(player => (
-                            <PlayerRow 
-                                key={player.id} 
-                                player={player} 
-                                showPrice
-                                onSell={handleInitiateSell}
-                                onLoan={handleInitiateLoan}
-                                onRenew={handleRenew}
-                            />
-                        ))}
-                    </div>
-                </Card>
-            </div>
-        )}
-
-        {view === 'market' && (
-            <div className="space-y-4 md:space-y-6 animate-fade-in">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-lg md:text-2xl font-bold text-slate-800">Mercado da Bola</h2>
-                    <button 
-                        onClick={async () => {
-                            const newPlayers = await generateTransferMarket();
-                            setMarket(prev => [...newPlayers, ...prev].slice(0, 20));
-                        }}
-                        className="text-emerald-600 hover:text-emerald-700 text-xs md:text-sm font-medium bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100"
-                    >
-                        Atualizar
-                    </button>
-                </div>
-                <Card>
-                    {market.length === 0 ? (
-                        <div className="text-center py-10 text-slate-500">
-                            Carregando mercado...
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-slate-100">
-                            {market.map(player => (
-                                <PlayerRow 
-                                    key={player.id} 
-                                    player={player} 
-                                    showPrice
-                                    actionButton={
-                                        <button 
-                                            onClick={() => handleBuyPlayer(player)}
-                                            disabled={budget < player.value}
-                                            className={`text-xs px-3 py-2 rounded-md font-medium transition-colors border whitespace-nowrap ${
-                                                budget >= player.value 
-                                                ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-200' 
-                                                : 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200'
-                                            }`}
-                                        >
-                                            Comprar
-                                        </button>
-                                    }
-                                />
-                            ))}
-                        </div>
-                    )}
-                </Card>
-            </div>
-        )}
-
-        {view === 'standings' && userTeam && (
-            <div className="animate-fade-in">
-                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold text-slate-800">Tabela Brasileirão</h2>
-                    <div className="text-sm text-slate-500">Série A</div>
-                 </div>
-                 <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
-                     <div className="overflow-x-auto">
-                         <table className="w-full text-sm text-left">
-                             <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
-                                 <tr>
-                                     <th className="px-4 py-3 font-bold w-10 text-center">#</th>
-                                     <th className="px-4 py-3 font-bold">Clube</th>
-                                     <th className="px-4 py-3 font-bold text-center">P</th>
-                                     <th className="px-4 py-3 font-bold text-center hidden md:table-cell">J</th>
-                                     <th className="px-4 py-3 font-bold text-center hidden md:table-cell">V</th>
-                                     <th className="px-4 py-3 font-bold text-center hidden md:table-cell">E</th>
-                                     <th className="px-4 py-3 font-bold text-center hidden md:table-cell">D</th>
-                                     <th className="px-4 py-3 font-bold text-center hidden sm:table-cell">GP</th>
-                                     <th className="px-4 py-3 font-bold text-center hidden sm:table-cell">GC</th>
-                                     <th className="px-4 py-3 font-bold text-center">SG</th>
-                                 </tr>
-                             </thead>
-                             <tbody className="divide-y divide-slate-100">
-                                 {leagueTable.map((team, index) => {
-                                     const isUser = team.id === userTeam.id;
-                                     return (
-                                         <tr key={team.id} className={`hover:bg-slate-50 transition-colors ${isUser ? 'bg-emerald-50' : ''}`}>
-                                             <td className={`px-4 py-3 text-center font-bold ${index < 4 ? 'text-blue-600' : index > 16 ? 'text-red-500' : 'text-slate-500'}`}>
-                                                 {index + 1}
-                                             </td>
-                                             <td className="px-4 py-3 font-medium text-slate-800 flex items-center gap-2">
-                                                 {isUser && <span className="w-2 h-2 rounded-full bg-emerald-500"></span>}
-                                                 {team.name}
-                                             </td>
-                                             <td className="px-4 py-3 text-center font-bold text-slate-900">{team.points}</td>
-                                             <td className="px-4 py-3 text-center text-slate-600 hidden md:table-cell">{team.played}</td>
-                                             <td className="px-4 py-3 text-center text-slate-600 hidden md:table-cell">{team.won}</td>
-                                             <td className="px-4 py-3 text-center text-slate-600 hidden md:table-cell">{team.drawn}</td>
-                                             <td className="px-4 py-3 text-center text-slate-600 hidden md:table-cell">{team.lost}</td>
-                                             <td className="px-4 py-3 text-center text-slate-600 hidden sm:table-cell">{team.gf}</td>
-                                             <td className="px-4 py-3 text-center text-slate-600 hidden sm:table-cell">{team.ga}</td>
-                                             <td className="px-4 py-3 text-center font-medium text-slate-700">{team.gf - team.ga}</td>
-                                         </tr>
-                                     );
-                                 })}
-                             </tbody>
-                         </table>
-                     </div>
-                     <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex gap-4 flex-wrap">
-                         <div className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-600 rounded-full"></span> Libertadores</div>
-                         <div className="flex items-center gap-1"><span className="w-2 h-2 bg-red-500 rounded-full"></span> Rebaixamento</div>
-                     </div>
-                 </div>
-            </div>
-        )}
-
         {view === 'match' && userTeam && (
             <div className="max-w-4xl mx-auto animate-fade-in">
                 {!isSimulating && !matchResult && !isVisualMatch && (
@@ -1342,6 +1297,7 @@ export default function App() {
                     <div className="text-center py-32">
                          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-600 mx-auto mb-6"></div>
                          <h3 className="text-xl font-bold text-slate-700">Calculando Resultado...</h3>
+                         {preparingVisualMatch && <p className="text-xs text-emerald-600 mt-2 font-medium">Som da torcida ativado</p>}
                     </div>
                 )}
 
