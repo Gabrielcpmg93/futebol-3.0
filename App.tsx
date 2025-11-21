@@ -44,7 +44,8 @@ import {
     TrendingUp,
     ShoppingBag,
     Wallet,
-    Shirt
+    Shirt,
+    Crown
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -323,6 +324,7 @@ export default function App() {
   
   const [showShop, setShowShop] = useState(false);
   const [showContract, setShowContract] = useState(false);
+  const [showCareerTrophies, setShowCareerTrophies] = useState(false);
   const [careerTransferOffers, setCareerTransferOffers] = useState<Array<{name: string, color: string}>>([]);
 
   const shopItems = [
@@ -459,7 +461,8 @@ export default function App() {
           history: [],
           cash: 0,
           inventory: [],
-          season: 1
+          season: 1,
+          trophies: [] // Start with no trophies
       });
       setView('career-hub');
   };
@@ -483,14 +486,27 @@ export default function App() {
 
       setCareerData(prev => {
           if (!prev) return null;
+          
+          const newMatchesPlayed = prev.matchesPlayed + 1;
+          let newTrophies = [...prev.trophies];
+          
+          // Trophy Logic: 80 Matches
+          if (newMatchesPlayed === 80) {
+              if (!newTrophies.includes("Lenda da Temporada")) {
+                  newTrophies.push("Lenda da Temporada");
+                  setTimeout(() => alert("PARABÉNS! Você completou 80 jogos e ganhou o troféu 'Lenda da Temporada'!"), 500);
+              }
+          }
+
           return {
               ...prev,
-              matchesPlayed: prev.matchesPlayed + 1,
+              matchesPlayed: newMatchesPlayed,
               goals: prev.goals + myGoals,
               assists: prev.assists + (assisted ? 1 : 0),
               rating: prev.rating + ratingImprovement,
               history: [resultText, ...prev.history],
-              cash: prev.cash + 1500 // Earn salary
+              cash: prev.cash + 1500, // Earn salary
+              trophies: newTrophies
           };
       });
       setLoading(false);
@@ -1136,6 +1152,60 @@ export default function App() {
           </div>
       )}
 
+      {/* CAREER TROPHIES MODAL */}
+      {showCareerTrophies && careerData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in backdrop-blur-sm">
+              <div className="bg-slate-900 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-700">
+                  <div className="p-6 bg-gradient-to-r from-amber-600/20 to-yellow-600/20 border-b border-slate-700">
+                      <div className="flex justify-between items-center">
+                          <h3 className="font-bold text-xl text-amber-400 flex items-center gap-2">
+                              <Crown className="text-amber-400" /> Galeria de Troféus
+                          </h3>
+                          <button onClick={() => setShowCareerTrophies(false)} className="text-slate-400 hover:text-white">X</button>
+                      </div>
+                  </div>
+                  
+                  <div className="p-8 flex flex-col items-center justify-center min-h-[300px]">
+                      {careerData.trophies.length === 0 ? (
+                          <div className="text-center opacity-50">
+                              <div className="bg-slate-800 p-4 rounded-full inline-block mb-4">
+                                  <Award size={48} className="text-slate-600" />
+                              </div>
+                              <p className="text-slate-400">Nenhum troféu conquistado ainda.</p>
+                              <p className="text-xs text-slate-600 mt-2">Complete 80 jogos para ganhar seu primeiro troféu.</p>
+                          </div>
+                      ) : (
+                          <div className="grid grid-cols-1 gap-6 w-full">
+                              {careerData.trophies.map((trophy, idx) => (
+                                  <div key={idx} className="bg-gradient-to-b from-slate-800 to-slate-900 p-6 rounded-2xl border border-amber-500/30 flex flex-col items-center text-center relative overflow-hidden group hover:scale-105 transition-transform">
+                                      {/* Shine Effect */}
+                                      <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 group-hover:animate-[shimmer_1s_infinite]"></div>
+                                      
+                                      {/* 2D TROPHY ART */}
+                                      <div className="mb-4 relative">
+                                          <div className="absolute inset-0 bg-amber-400 blur-2xl opacity-20 rounded-full"></div>
+                                          <div className="relative z-10 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]">
+                                              <Trophy size={80} className="text-amber-300 fill-amber-500/20" strokeWidth={1.5} />
+                                              <Star size={24} className="text-yellow-100 absolute -top-2 -right-2 animate-pulse fill-white" />
+                                              <Star size={16} className="text-yellow-100 absolute top-10 -left-4 animate-pulse delay-300 fill-white" />
+                                          </div>
+                                      </div>
+                                      
+                                      <h4 className="text-xl font-bold text-amber-100 mb-1">{trophy}</h4>
+                                      <p className="text-xs text-amber-500/80 uppercase tracking-widest">Conquista Lendária</p>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+                  
+                  <div className="p-4 border-t border-slate-800 text-center">
+                      <p className="text-xs text-slate-500">Continue jogando para desbloquear mais conquistas.</p>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* CONTRACT MODAL */}
       {showContract && careerData && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in backdrop-blur-sm">
@@ -1677,6 +1747,14 @@ export default function App() {
                                     Jogar Próxima Partida
                                 </>
                             )}
+                        </button>
+                        
+                        <button
+                            onClick={() => setShowCareerTrophies(true)}
+                            className="w-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-200 font-bold py-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
+                        >
+                            <Crown size={20} className="text-amber-400" />
+                            Sala de Troféus ({careerData.trophies.length})
                         </button>
                         
                         {/* New Buttons Grid */}

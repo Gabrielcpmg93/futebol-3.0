@@ -93,6 +93,7 @@ export interface CareerData {
   cash: number; // Money in R$
   inventory: string[]; // Items bought
   season: number;
+  trophies: string[]; // List of earned trophies in career
 }
 
 export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'standings' | 'trophies' | 'settings' | 'social' | 'career-intro' | 'career-hub';
