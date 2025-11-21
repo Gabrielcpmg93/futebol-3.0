@@ -28,7 +28,8 @@ import {
     Shield,
     Sword,
     MoveRight,
-    Target
+    Target,
+    Timer
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -44,7 +45,7 @@ const TeamSelection = ({ onSelect }: { onSelect: (team: Team) => void }) => {
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6">
       <div className="text-center mb-8 md:mb-10 mt-4">
-        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-2 tracking-tight">BRAZUCA MANAGER <span className="text-emerald-400">AI</span></h1>
+        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-2 tracking-tight">FUTEBOL <span className="text-emerald-400">BRASIL</span></h1>
         <p className="text-slate-400 text-sm md:text-base">Escolha seu clube para começar a temporada</p>
       </div>
       
@@ -239,7 +240,8 @@ const SoccerField = ({
             ></div>
             
             {/* Game Time Overlay */}
-            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full font-mono font-bold text-sm backdrop-blur-sm">
+            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full font-mono font-bold text-sm backdrop-blur-sm flex items-center gap-2">
+                <Timer size={14} />
                 {gameTime}'
             </div>
         </div>
@@ -286,6 +288,10 @@ export default function App() {
   const [awayPlayerPos, setAwayPlayerPos] = useState<{x:number, y:number}[]>([]);
   const [matchEvents, setMatchEvents] = useState<any[]>([]);
   const [lastEventIndex, setLastEventIndex] = useState(-1);
+
+  // Halftime State
+  const [isHalftime, setIsHalftime] = useState(false);
+  const [hasPlayedSecondHalf, setHasPlayedSecondHalf] = useState(false);
 
   // TACTICS STATE
   const [currentTactic, setCurrentTactic] = useState<'balanced' | 'offensive' | 'defensive' | 'counter'>('balanced');
@@ -339,7 +345,7 @@ export default function App() {
 
   // Manage Audio Playback
   useEffect(() => {
-    const shouldPlay = (isVisualMatch || preparingVisualMatch) && soundEnabled;
+    const shouldPlay = (isVisualMatch || preparingVisualMatch) && soundEnabled && !isHalftime;
     
     if (shouldPlay && audioRef.current) {
          const playPromise = audioRef.current.play();
@@ -348,10 +354,10 @@ export default function App() {
                  console.log("Autoplay prevented/interrupted (normal in some flows):", error);
              });
          }
-    } else if (!shouldPlay && audioRef.current) {
+    } else if ((!shouldPlay || isHalftime) && audioRef.current) {
         audioRef.current.pause();
     }
-  }, [isVisualMatch, preparingVisualMatch, soundEnabled]);
+  }, [isVisualMatch, preparingVisualMatch, soundEnabled, isHalftime]);
 
 
   // Initialization logic
@@ -397,6 +403,8 @@ export default function App() {
     setPreparingVisualMatch(false);
     setSoundEnabled(false);
     setCurrentTactic('balanced');
+    setIsHalftime(false);
+    setHasPlayedSecondHalf(false);
   };
 
   const handleSkipWeek = () => {
@@ -585,6 +593,8 @@ export default function App() {
           setPreparingVisualMatch(true); // Prevent useEffect from pausing
           setSoundEnabled(true);
           setCurrentTactic('balanced'); // Reset tactic
+          setIsHalftime(false);
+          setHasPlayedSecondHalf(false);
           
           if (audioRef.current) {
               audioRef.current.volume = 0.4;
@@ -616,9 +626,16 @@ export default function App() {
   // Simulation Loop for Visual Match
   useEffect(() => {
       if (!isVisualMatch || !matchResult || simTime > 90) return;
+      if (isHalftime) return; // Pause for halftime
 
       const timer = setInterval(() => {
           setSimTime(prev => {
+              // Check for Halftime
+              if (prev === 45 && !hasPlayedSecondHalf) {
+                  setIsHalftime(true);
+                  return 45;
+              }
+
               const nextTime = prev + 1;
               if (nextTime > 90) {
                   finishMatch(matchResult, currentOpponent!);
@@ -730,13 +747,22 @@ export default function App() {
       }, 150); // Speed of simulation
 
       return () => clearInterval(timer);
-  }, [isVisualMatch, simTime, matchResult, matchEvents, currentTactic]);
+  }, [isVisualMatch, simTime, matchResult, matchEvents, currentTactic, isHalftime, hasPlayedSecondHalf]);
+
+  const startSecondHalf = () => {
+      setIsHalftime(false);
+      setHasPlayedSecondHalf(true);
+      // Little push to prevent getting stuck at 45 if the interval triggers immediately again (though logic prevents it)
+      setSimTime(46);
+  };
 
   const finishMatch = (result: MatchResult, opponent: Team) => {
       setIsVisualMatch(false);
       setIsSimulating(false);
       setPreparingVisualMatch(false);
       setSoundEnabled(false);
+      setIsHalftime(false);
+      setHasPlayedSecondHalf(false);
       
       // Use the VISUAL score if it was a visual match, otherwise use calculated
       // This honors the "tactics changed the result" logic
@@ -1494,7 +1520,7 @@ export default function App() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className="bg-slate-800 px-3 py-1 rounded text-xs font-mono text-emerald-400 animate-pulse">
-                                        AO VIVO
+                                        {isHalftime ? "INTERVALO" : "AO VIVO"}
                                     </div>
                                     <button 
                                         onClick={() => setSoundEnabled(!soundEnabled)}
@@ -1522,44 +1548,58 @@ export default function App() {
                                     homePositions={homePlayerPos}
                                     awayPositions={awayPlayerPos}
                                 />
-                                {/* Tactic Controls Overlay */}
-                                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-2">
-                                    <button 
-                                        onClick={() => setCurrentTactic('balanced')}
-                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm transition-all ${currentTactic === 'balanced' ? 'bg-white text-slate-900 border-white scale-105 shadow-lg' : 'bg-black/40 text-white/80 border-white/30 hover:bg-black/60'}`}
-                                    >
-                                        Equilibrado
-                                    </button>
-                                    <button 
-                                        onClick={() => setCurrentTactic('offensive')}
-                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm transition-all flex items-center gap-1 ${currentTactic === 'offensive' ? 'bg-emerald-500 text-white border-emerald-400 scale-105 shadow-lg' : 'bg-black/40 text-white/80 border-white/30 hover:bg-black/60'}`}
-                                    >
-                                        <Sword size={12} /> Ofensivo
-                                    </button>
-                                    <button 
-                                        onClick={() => setCurrentTactic('defensive')}
-                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm transition-all flex items-center gap-1 ${currentTactic === 'defensive' ? 'bg-blue-500 text-white border-blue-400 scale-105 shadow-lg' : 'bg-black/40 text-white/80 border-white/30 hover:bg-black/60'}`}
-                                    >
-                                        <Shield size={12} /> Defensivo
-                                    </button>
-                                    <button 
-                                        onClick={() => setCurrentTactic('counter')}
-                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm transition-all flex items-center gap-1 ${currentTactic === 'counter' ? 'bg-amber-500 text-white border-amber-400 scale-105 shadow-lg' : 'bg-black/40 text-white/80 border-white/30 hover:bg-black/60'}`}
-                                    >
-                                        <MoveRight size={12} /> Contra-Ataque
-                                    </button>
-                                </div>
+
+                                {/* Halftime Overlay */}
+                                {isHalftime && (
+                                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-50">
+                                        <h2 className="text-3xl font-bold text-white mb-2">INTERVALO</h2>
+                                        <p className="text-slate-300 mb-6">Fim do 1º Tempo</p>
+                                        <button 
+                                            onClick={startSecondHalf}
+                                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-full transition-all transform hover:scale-105 shadow-lg"
+                                        >
+                                            Iniciar 2º Tempo
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            
-                            <div className="p-3 text-center bg-slate-800 text-xs text-slate-400 flex justify-center items-center gap-2">
-                                <span>Estratégia Atual:</span>
-                                <span className="text-white font-bold uppercase">
-                                    {currentTactic === 'balanced' && "Equilibrada"}
-                                    {currentTactic === 'offensive' && "Pressão Alta (Gols++)"}
-                                    {currentTactic === 'defensive' && "Retranca (Gols--)"}
-                                    {currentTactic === 'counter' && "Contra-Ataque Rápido"}
-                                </span>
-                            </div>
+                        </div>
+
+                        {/* TACTIC CONTROLS (MOVED BELOW FIELD) */}
+                        <div className="flex flex-wrap justify-center gap-2 mt-4">
+                            <button 
+                                onClick={() => setCurrentTactic('balanced')}
+                                className={`px-4 py-3 rounded-xl font-bold border transition-all flex-1 md:flex-none min-w-[100px] text-center ${currentTactic === 'balanced' ? 'bg-white text-slate-900 border-slate-300 shadow-md scale-105' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}
+                            >
+                                Equilibrado
+                            </button>
+                            <button 
+                                onClick={() => setCurrentTactic('offensive')}
+                                className={`px-4 py-3 rounded-xl font-bold border transition-all flex-1 md:flex-none min-w-[100px] flex items-center justify-center gap-2 ${currentTactic === 'offensive' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md scale-105' : 'bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50'}`}
+                            >
+                                <Sword size={16} /> Ofensivo
+                            </button>
+                            <button 
+                                onClick={() => setCurrentTactic('defensive')}
+                                className={`px-4 py-3 rounded-xl font-bold border transition-all flex-1 md:flex-none min-w-[100px] flex items-center justify-center gap-2 ${currentTactic === 'defensive' ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'}`}
+                            >
+                                <Shield size={16} /> Defensivo
+                            </button>
+                            <button 
+                                onClick={() => setCurrentTactic('counter')}
+                                className={`px-4 py-3 rounded-xl font-bold border transition-all flex-1 md:flex-none min-w-[100px] flex items-center justify-center gap-2 ${currentTactic === 'counter' ? 'bg-amber-500 text-white border-amber-500 shadow-md scale-105' : 'bg-white text-amber-600 border-amber-200 hover:bg-amber-50'}`}
+                            >
+                                <MoveRight size={16} /> Contra-Ataque
+                            </button>
+                        </div>
+                        
+                        <div className="text-center text-slate-500 text-xs mt-2">
+                            Estratégia Atual: <span className="font-bold text-slate-700 uppercase">
+                                {currentTactic === 'balanced' && "Equilibrada"}
+                                {currentTactic === 'offensive' && "Pressão Alta"}
+                                {currentTactic === 'defensive' && "Retranca"}
+                                {currentTactic === 'counter' && "Contra-Ataque Rápido"}
+                            </span>
                         </div>
                     </div>
                 )}
