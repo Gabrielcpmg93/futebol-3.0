@@ -41,7 +41,10 @@ import {
     EyeOff,
     ArrowLeft,
     Medal,
-    TrendingUp
+    TrendingUp,
+    ShoppingBag,
+    Wallet,
+    Shirt
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -317,6 +320,19 @@ export default function App() {
   const [careerTempName, setCareerTempName] = useState("");
   const [careerTempPos, setCareerTempPos] = useState<Position>(Position.ATT);
   const [careerOffers, setCareerOffers] = useState<Array<{name: string, color: string}>>([]);
+  
+  const [showShop, setShowShop] = useState(false);
+  const [showContract, setShowContract] = useState(false);
+  const [careerTransferOffers, setCareerTransferOffers] = useState<Array<{name: string, color: string}>>([]);
+
+  const shopItems = [
+      { id: 'phone', name: 'iPhone 15 Pro', price: 5000, icon: <Smartphone size={20} /> },
+      { id: 'boots', name: 'Chuteira Elite', price: 1200, icon: <Shirt size={20} /> },
+      { id: 'watch', name: 'Relógio de Luxo', price: 15000, icon: <Timer size={20} /> },
+      { id: 'car', name: 'Carro Esportivo', price: 150000, icon: <Zap size={20} /> },
+      { id: 'house', name: 'Apartamento', price: 500000, icon: <Briefcase size={20} /> },
+      { id: 'console', name: 'Videogame', price: 3500, icon: <MonitorPlay size={20} /> }
+  ];
 
   // Social Feed State
   const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
@@ -440,7 +456,10 @@ export default function App() {
           goals: 0,
           assists: 0,
           rating: 65, // Start rating
-          history: []
+          history: [],
+          cash: 0,
+          inventory: [],
+          season: 1
       });
       setView('career-hub');
   };
@@ -470,10 +489,68 @@ export default function App() {
               goals: prev.goals + myGoals,
               assists: prev.assists + (assisted ? 1 : 0),
               rating: prev.rating + ratingImprovement,
-              history: [resultText, ...prev.history]
+              history: [resultText, ...prev.history],
+              cash: prev.cash + 1500 // Earn salary
           };
       });
       setLoading(false);
+  };
+
+  const handleTrainPlayer = () => {
+      if (!careerData) return;
+      setCareerData(prev => {
+          if (!prev) return null;
+          return {
+              ...prev,
+              rating: Math.min(99, prev.rating + 1)
+          }
+      });
+      alert("Treino concluído! +1 OVR");
+  };
+
+  const handleBuyItem = (item: any) => {
+      if (!careerData) return;
+      if (careerData.cash < item.price) {
+          alert("Dinheiro insuficiente!");
+          return;
+      }
+      setCareerData(prev => {
+          if (!prev) return null;
+          return {
+              ...prev,
+              cash: prev.cash - item.price,
+              inventory: [...prev.inventory, item.name]
+          }
+      });
+      alert(`${item.name} comprado com sucesso!`);
+  };
+
+  const handleOpenContract = () => {
+      const t1 = generateFictionalTeamName();
+      const t2 = generateFictionalTeamName();
+      setCareerTransferOffers([
+          { name: t1, color: "bg-slate-600" },
+          { name: t2, color: "bg-indigo-600" }
+      ]);
+      setShowContract(true);
+  };
+
+  const handleContractDecision = (stay: boolean, newTeam?: {name: string, color: string}) => {
+      if (!careerData) return;
+      
+      setCareerData(prev => {
+          if (!prev) return null;
+          return {
+              ...prev,
+              matchesPlayed: 0,
+              season: prev.season + 1,
+              teamName: stay ? prev.teamName : (newTeam?.name || prev.teamName),
+              teamColor: stay ? prev.teamColor : (newTeam?.color || prev.teamColor),
+              history: [] // Clear history for new season
+          }
+      });
+      setShowContract(false);
+      alert(stay ? "Contrato renovado!" : `Bem-vindo ao ${newTeam?.name}!`);
   };
 
   // --- End Career Mode Handlers ---
@@ -1007,6 +1084,117 @@ export default function App() {
   return (
     <div className={`flex flex-col lg:flex-row min-h-screen bg-slate-50 relative ${isCareerView ? 'overflow-hidden' : ''}`}>
       
+      {/* SHOP MODAL */}
+      {showShop && careerData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in backdrop-blur-sm">
+              <div className="bg-slate-900 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-700">
+                  <div className="p-6 border-b border-slate-800">
+                      <div className="flex justify-between items-center">
+                          <h3 className="font-bold text-xl text-white flex items-center gap-2">
+                              <ShoppingBag className="text-emerald-400" /> Loja Virtual
+                          </h3>
+                          <div className="text-emerald-400 font-bold bg-emerald-900/30 px-3 py-1 rounded-full border border-emerald-900">
+                              R$ {careerData.cash}
+                          </div>
+                      </div>
+                  </div>
+                  <div className="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                      <div className="grid grid-cols-1 gap-3">
+                          {shopItems.map(item => {
+                              const owned = careerData.inventory.includes(item.name);
+                              return (
+                                  <button 
+                                      key={item.id}
+                                      onClick={() => !owned && handleBuyItem(item)}
+                                      disabled={owned}
+                                      className={`flex items-center justify-between p-4 rounded-xl border transition-all ${owned ? 'bg-slate-800 border-slate-700 opacity-50' : 'bg-slate-800 border-slate-700 hover:border-emerald-500 hover:bg-slate-750'}`}
+                                  >
+                                      <div className="flex items-center gap-4">
+                                          <div className="p-3 bg-slate-700 rounded-full text-slate-300">
+                                              {item.icon}
+                                          </div>
+                                          <div className="text-left">
+                                              <span className="block font-bold text-white">{item.name}</span>
+                                              <span className="text-xs text-slate-400">{owned ? 'Comprado' : `R$ ${item.price}`}</span>
+                                          </div>
+                                      </div>
+                                      {owned && <CheckCircle size={20} className="text-emerald-500" />}
+                                  </button>
+                              )
+                          })}
+                      </div>
+                  </div>
+                  <div className="p-4 border-t border-slate-800">
+                      <button 
+                          onClick={() => setShowShop(false)}
+                          className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold"
+                      >
+                          Fechar Loja
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* CONTRACT MODAL */}
+      {showContract && careerData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in backdrop-blur-sm">
+              <div className="bg-slate-900 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-700">
+                  <div className="p-6 bg-gradient-to-r from-blue-900 to-slate-900">
+                      <h3 className="font-bold text-2xl text-white mb-1">Fim de Contrato!</h3>
+                      <p className="text-blue-200 text-sm">80 Jogos concluídos. Hora de decidir seu futuro.</p>
+                  </div>
+                  
+                  <div className="p-6 space-y-4">
+                      <button 
+                          onClick={() => handleContractDecision(true)}
+                          className="w-full p-4 rounded-xl border border-emerald-500/50 bg-emerald-900/20 hover:bg-emerald-900/40 transition-all flex items-center justify-between group"
+                      >
+                          <div className="text-left">
+                              <span className="block font-bold text-white text-lg">Renovar Contrato</span>
+                              <span className="text-xs text-emerald-400">Permanecer no {careerData.teamName}</span>
+                          </div>
+                          <CheckCircle className="text-emerald-500 group-hover:scale-110 transition-transform" />
+                      </button>
+                      
+                      <div className="relative flex py-2 items-center">
+                          <div className="flex-grow border-t border-slate-700"></div>
+                          <span className="flex-shrink-0 mx-4 text-slate-500 text-xs">OU TRANSFERIR PARA</span>
+                          <div className="flex-grow border-t border-slate-700"></div>
+                      </div>
+
+                      {careerTransferOffers.map((offer, idx) => (
+                           <button 
+                              key={idx}
+                              onClick={() => handleContractDecision(false, offer)}
+                              className="w-full p-4 rounded-xl border border-slate-700 bg-slate-800 hover:border-blue-500 transition-all flex items-center justify-between group"
+                          >
+                              <div className="flex items-center gap-3">
+                                  <div className={`w-10 h-10 rounded-full ${offer.color} flex items-center justify-center text-white font-bold shadow-sm`}>
+                                      {offer.name.substring(0, 2)}
+                                  </div>
+                                  <div className="text-left">
+                                      <span className="block font-bold text-white">{offer.name}</span>
+                                      <span className="text-xs text-slate-400">Novo Desafio</span>
+                                  </div>
+                              </div>
+                              <Briefcase className="text-slate-500 group-hover:text-blue-400 transition-colors" />
+                          </button>
+                      ))}
+                  </div>
+                  
+                  <div className="p-4 border-t border-slate-800 text-center">
+                      <button 
+                          onClick={() => setShowContract(false)}
+                          className="text-slate-500 hover:text-white text-sm"
+                      >
+                          Pensar mais um pouco (Cancelar)
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* SELL MODAL */}
       {sellingPlayer && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
@@ -1435,6 +1623,9 @@ export default function App() {
                         <div>
                             <h2 className="text-2xl font-bold text-white">{careerData.playerName}</h2>
                             <p className="text-slate-400">{careerData.position} • {careerData.teamName}</p>
+                            <p className="text-emerald-400 text-xs font-bold mt-1 flex items-center gap-1">
+                                <Wallet size={12} /> R$ {careerData.cash.toLocaleString()}
+                            </p>
                         </div>
                     </div>
                     <div className="text-right">
@@ -1458,7 +1649,7 @@ export default function App() {
                         <div className="text-amber-500 mb-2 font-bold text-lg">
                              {careerData.matchesPlayed} / 80
                         </div>
-                        <span className="text-xs text-slate-500 uppercase">Jogos na Temporada</span>
+                        <span className="text-xs text-slate-500 uppercase">Jogos na Temporada {careerData.season}</span>
                         <div className="w-full bg-slate-700 h-2 rounded-full mt-2 overflow-hidden">
                             <div 
                                 className="bg-amber-500 h-full transition-all duration-500" 
@@ -1469,32 +1660,82 @@ export default function App() {
                 </div>
 
                 {careerData.matchesPlayed < 80 ? (
-                    <button 
-                        onClick={handlePlayCareerMatch}
-                        disabled={loading}
-                        className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-6 rounded-2xl text-xl shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-3"
-                    >
-                        {loading ? (
-                            <>
-                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                                Jogando...
-                            </>
-                        ) : (
-                            <>
-                                <PlayCircle size={28} />
-                                Jogar Próxima Partida
-                            </>
-                        )}
-                    </button>
-                ) : (
-                     <div className="bg-amber-500 text-black p-8 rounded-2xl text-center">
-                        <h2 className="text-3xl font-bold mb-2">Temporada Encerrada!</h2>
-                        <p className="mb-6 font-medium">Você completou os 80 jogos. Que carreira incrível!</p>
+                    <>
                         <button 
-                            onClick={() => setView('dashboard')}
-                            className="bg-black text-white px-6 py-3 rounded-lg font-bold hover:bg-slate-800"
+                            onClick={handlePlayCareerMatch}
+                            disabled={loading}
+                            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-6 rounded-2xl text-xl shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-3"
                         >
-                            Voltar ao Menu Principal
+                            {loading ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                                    Jogando...
+                                </>
+                            ) : (
+                                <>
+                                    <PlayCircle size={28} />
+                                    Jogar Próxima Partida
+                                </>
+                            )}
+                        </button>
+                        
+                        {/* New Buttons Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                             <button 
+                                onClick={handleOpenContract}
+                                disabled={careerData.matchesPlayed < 80}
+                                className="bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors text-center"
+                            >
+                                <Briefcase className={careerData.matchesPlayed >= 80 ? "text-amber-400" : "text-slate-500"} />
+                                <div>
+                                    <h3 className="font-bold text-white text-sm">Contrato</h3>
+                                    <p className="text-[10px] text-slate-400">
+                                        {careerData.matchesPlayed >= 80 ? "Disponível" : "Bloqueado (80 jogos)"}
+                                    </p>
+                                </div>
+                            </button>
+
+                            <button 
+                                onClick={handleTrainPlayer}
+                                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors text-center"
+                            >
+                                <Dumbbell className="text-blue-400" />
+                                <div>
+                                    <h3 className="font-bold text-white text-sm">Treino</h3>
+                                    <p className="text-[10px] text-slate-400">+1 OVR</p>
+                                </div>
+                            </button>
+
+                            <div className="bg-slate-800 border border-slate-700 p-4 rounded-xl flex flex-col items-center gap-2 text-center">
+                                <Wallet className="text-emerald-400" />
+                                <div>
+                                    <h3 className="font-bold text-white text-sm">Salário</h3>
+                                    <p className="text-[10px] text-emerald-400 font-bold">+R$ 1.500/jogo</p>
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={() => setShowShop(true)}
+                                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors text-center"
+                            >
+                                <ShoppingBag className="text-pink-400" />
+                                <div>
+                                    <h3 className="font-bold text-white text-sm">Loja</h3>
+                                    <p className="text-[10px] text-slate-400">Gastar salário</p>
+                                </div>
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                     <div className="bg-amber-500 text-black p-8 rounded-2xl text-center animate-pulse">
+                        <h2 className="text-3xl font-bold mb-2">Fim de Temporada!</h2>
+                        <p className="mb-6 font-medium">Seu contrato acabou. Hora de renovar ou buscar novos ares.</p>
+                        <button 
+                            onClick={handleOpenContract}
+                            className="bg-black text-white px-8 py-4 rounded-xl font-bold hover:bg-slate-800 text-lg flex items-center justify-center gap-2 mx-auto"
+                        >
+                            <Briefcase size={20} />
+                            Resolver Futuro
                         </button>
                     </div>
                 )}

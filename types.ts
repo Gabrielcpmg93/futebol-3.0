@@ -90,6 +90,9 @@ export interface CareerData {
   assists: number;
   rating: number;
   history: string[]; // Log of match results
+  cash: number; // Money in R$
+  inventory: string[]; // Items bought
+  season: number;
 }
 
 export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'standings' | 'trophies' | 'settings' | 'social' | 'career-intro' | 'career-hub';
