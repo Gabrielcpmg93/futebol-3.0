@@ -488,21 +488,38 @@ export default function App() {
           if (!prev) return null;
           
           const newMatchesPlayed = prev.matchesPlayed + 1;
+          const currentGoals = prev.goals + myGoals;
+          const currentAssists = prev.assists + (assisted ? 1 : 0);
+          
           let newTrophies = [...prev.trophies];
           
           // Trophy Logic: 80 Matches
           if (newMatchesPlayed === 80) {
-              if (!newTrophies.includes("Lenda da Temporada")) {
-                  newTrophies.push("Lenda da Temporada");
-                  setTimeout(() => alert("PARABÉNS! Você completou 80 jogos e ganhou o troféu 'Lenda da Temporada'!"), 500);
+              if (!newTrophies.includes(`Lenda da Temporada (T${prev.season})`)) {
+                  newTrophies.push(`Lenda da Temporada (T${prev.season})`);
+                  setTimeout(() => alert(`PARABÉNS! Você completou 80 jogos e ganhou o troféu 'Lenda da Temporada'!`), 500);
               }
+          }
+
+          // Trophy Logic: 60 Goals (Artilheiro)
+          // Check if we just crossed the threshold
+          if (prev.goals < 60 && currentGoals >= 60) {
+               newTrophies.push(`Artilheiro de Ouro (T${prev.season})`);
+               setTimeout(() => alert(`INCRÍVEL! 60 Gols! Você recebeu o troféu 'Artilheiro de Ouro'!`), 500);
+          }
+
+          // Trophy Logic: 20 Assists (Rei das Assistências)
+          // Check if we just crossed the threshold
+          if (prev.assists < 20 && currentAssists >= 20) {
+               newTrophies.push(`Rei das Assistências (T${prev.season})`);
+               setTimeout(() => alert(`QUE VISÃO! 20 Assistências! Você recebeu o troféu 'Rei das Assistências'!`), 500);
           }
 
           return {
               ...prev,
               matchesPlayed: newMatchesPlayed,
-              goals: prev.goals + myGoals,
-              assists: prev.assists + (assisted ? 1 : 0),
+              goals: currentGoals,
+              assists: currentAssists,
               rating: prev.rating + ratingImprovement,
               history: [resultText, ...prev.history],
               cash: prev.cash + 1500, // Earn salary
@@ -559,6 +576,8 @@ export default function App() {
           return {
               ...prev,
               matchesPlayed: 0,
+              goals: 0, // Reset goals for new season
+              assists: 0, // Reset assists for new season
               season: prev.season + 1,
               teamName: stay ? prev.teamName : (newTeam?.name || prev.teamName),
               teamColor: stay ? prev.teamColor : (newTeam?.color || prev.teamColor),
@@ -566,7 +585,7 @@ export default function App() {
           }
       });
       setShowContract(false);
-      alert(stay ? "Contrato renovado!" : `Bem-vindo ao ${newTeam?.name}!`);
+      alert(stay ? "Contrato renovado! Nova temporada iniciada." : `Bem-vindo ao ${newTeam?.name}! Nova temporada iniciada.`);
   };
 
   // --- End Career Mode Handlers ---
@@ -1172,12 +1191,12 @@ export default function App() {
                                   <Award size={48} className="text-slate-600" />
                               </div>
                               <p className="text-slate-400">Nenhum troféu conquistado ainda.</p>
-                              <p className="text-xs text-slate-600 mt-2">Complete 80 jogos para ganhar seu primeiro troféu.</p>
+                              <p className="text-xs text-slate-600 mt-2">Jogue para desbloquear conquistas.</p>
                           </div>
                       ) : (
-                          <div className="grid grid-cols-1 gap-6 w-full">
+                          <div className="grid grid-cols-1 gap-6 w-full max-h-[60vh] overflow-y-auto custom-scrollbar">
                               {careerData.trophies.map((trophy, idx) => (
-                                  <div key={idx} className="bg-gradient-to-b from-slate-800 to-slate-900 p-6 rounded-2xl border border-amber-500/30 flex flex-col items-center text-center relative overflow-hidden group hover:scale-105 transition-transform">
+                                  <div key={idx} className="bg-gradient-to-b from-slate-800 to-slate-900 p-6 rounded-2xl border border-amber-500/30 flex flex-col items-center text-center relative overflow-hidden group hover:scale-105 transition-transform shrink-0">
                                       {/* Shine Effect */}
                                       <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 group-hover:animate-[shimmer_1s_infinite]"></div>
                                       
