@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Player, Position } from '../types';
-import { User } from 'lucide-react';
+import { User, AlertTriangle } from 'lucide-react';
 
 interface PlayerRowProps {
   player: Player;
@@ -32,6 +32,10 @@ const getPositionAbbr = (pos: Position) => {
   };
 
 export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, showPrice = false, onSell, onLoan, onRenew }) => {
+  
+  // Verificação de contrato expirando (menos de 10 semanas)
+  const isExpiring = player.contractWeeks <= 10 && !player.isLoaned;
+
   return (
     <div className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border-b border-slate-100 last:border-0">
       <div className="flex items-center gap-3 md:gap-4 overflow-hidden flex-1">
@@ -41,6 +45,11 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
            {player.isLoaned && (
                <div className="absolute -top-1 -right-1 bg-blue-600 text-white text-[8px] font-bold px-1 rounded-full border border-white" title="Emprestado">
                    EMP
+               </div>
+           )}
+           {isExpiring && (
+               <div className="absolute -top-1 -right-1 bg-amber-500 text-white p-0.5 rounded-full border border-white" title="Contrato Expirando!">
+                   <AlertTriangle size={10} fill="currentColor" />
                </div>
            )}
         </div>
@@ -69,9 +78,12 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
         {onRenew && (
             <div className="hidden sm:block text-center w-20">
                 <p className="text-[9px] text-slate-500 uppercase font-bold">Contrato</p>
-                <p className={`font-bold text-xs ${player.contractWeeks < 10 ? 'text-red-600' : player.isLoaned ? 'text-blue-600' : 'text-slate-700'}`}>
-                    {player.contractWeeks} sem.
-                </p>
+                <div className="flex items-center justify-center gap-1">
+                    {isExpiring && <AlertTriangle size={12} className="text-amber-500" />}
+                    <p className={`font-bold text-xs ${player.contractWeeks < 5 ? 'text-red-600' : isExpiring ? 'text-amber-600' : player.isLoaned ? 'text-blue-600' : 'text-slate-700'}`}>
+                        {player.contractWeeks} sem.
+                    </p>
+                </div>
             </div>
         )}
 
@@ -114,7 +126,7 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, actionButton, show
             {onRenew && !player.isLoaned && (
                 <button 
                     onClick={() => onRenew(player)}
-                    className="text-[10px] md:text-xs bg-green-50 text-green-600 hover:bg-green-100 px-2 py-1.5 rounded border border-green-200 transition-colors"
+                    className={`text-[10px] md:text-xs px-2 py-1.5 rounded border transition-colors ${isExpiring ? 'bg-amber-100 text-amber-700 border-amber-300 font-bold animate-pulse' : 'bg-green-50 text-green-600 hover:bg-green-100 border-green-200'}`}
                     title="Renovar Contrato (+50 sem.)"
                 >
                     Renovar

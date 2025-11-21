@@ -24,7 +24,11 @@ import {
     VolumeX,
     Handshake,
     CheckCircle,
-    Calendar
+    Calendar,
+    Shield,
+    Sword,
+    MoveRight,
+    Target
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -283,6 +287,9 @@ export default function App() {
   const [matchEvents, setMatchEvents] = useState<any[]>([]);
   const [lastEventIndex, setLastEventIndex] = useState(-1);
 
+  // TACTICS STATE
+  const [currentTactic, setCurrentTactic] = useState<'balanced' | 'offensive' | 'defensive' | 'counter'>('balanced');
+
   // Audio State
   const [soundEnabled, setSoundEnabled] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -389,6 +396,7 @@ export default function App() {
     setIsVisualMatch(false);
     setPreparingVisualMatch(false);
     setSoundEnabled(false);
+    setCurrentTactic('balanced');
   };
 
   const handleSkipWeek = () => {
@@ -533,6 +541,7 @@ export default function App() {
   const initializeMatchPositions = () => {
       // 4-4-2 Formation (percentages)
       // GK, Defs, Mids, Atts
+      // Home attacks Left to Right (X: 0 -> 100)
       const homeBase = [
           {x: 5, y: 50}, // GK
           {x: 20, y: 20}, {x: 20, y: 40}, {x: 20, y: 60}, {x: 20, y: 80}, // DEF
@@ -575,6 +584,7 @@ export default function App() {
       if (visual) {
           setPreparingVisualMatch(true); // Prevent useEffect from pausing
           setSoundEnabled(true);
+          setCurrentTactic('balanced'); // Reset tactic
           
           if (audioRef.current) {
               audioRef.current.volume = 0.4;
@@ -617,42 +627,110 @@ export default function App() {
               return nextTime;
           });
 
-          // Check for events at current minute
-          const eventsNow = matchEvents.filter(e => e.minute === simTime);
-          if (eventsNow.length > 0) {
-               eventsNow.forEach(e => {
-                   if (e.type === 'goal') {
-                        if (e.team === 'home') {
-                            setCurrentScore(s => ({ ...s, home: s.home + 1 }));
-                            setBallPosition({ x: 95, y: 50 }); // Ball in away net
-                        } else {
-                            setCurrentScore(s => ({ ...s, away: s.away + 1 }));
-                            setBallPosition({ x: 5, y: 50 }); // Ball in home net
-                        }
-                   }
-               });
-          } else {
-              // Random Movement if no goal
-              setHomePlayerPos(prev => prev.map(p => ({
-                  x: Math.max(2, Math.min(98, p.x + (Math.random() - 0.5) * 2)),
-                  y: Math.max(2, Math.min(98, p.y + (Math.random() - 0.5) * 2))
-              })));
-              setAwayPlayerPos(prev => prev.map(p => ({
-                x: Math.max(2, Math.min(98, p.x + (Math.random() - 0.5) * 2)),
-                y: Math.max(2, Math.min(98, p.y + (Math.random() - 0.5) * 2))
-             })));
+          // --- DYNAMIC TACTIC EVENT GENERATION ---
+          // Chance to score randomly based on Tactic (Overriding pre-determined events)
+          // Offensive: High chance score, High chance concede
+          // Defensive: Low chance both
+          // Counter: Med chance score
+          const rand = Math.random();
+          let homeGoalChance = 0;
+          let awayGoalChance = 0;
 
-             // Move Ball
-             setBallPosition(prev => ({
-                 x: Math.max(5, Math.min(95, prev.x + (Math.random() - 0.5) * 15)),
-                 y: Math.max(5, Math.min(95, prev.y + (Math.random() - 0.5) * 10))
-             }));
+          if (currentTactic === 'offensive') {
+              homeGoalChance = 0.02; // 2% per tick
+              awayGoalChance = 0.015; // Riskier
+          } else if (currentTactic === 'defensive') {
+              homeGoalChance = 0.002; // Very hard to score
+              awayGoalChance = 0.002; // Very hard to concede
+          } else if (currentTactic === 'counter') {
+              homeGoalChance = 0.01; // Decent chance
+              awayGoalChance = 0.005; // Good defense
+          } else { // Balanced
+              homeGoalChance = 0.005;
+              awayGoalChance = 0.005;
+          }
+
+          // Only trigger if no event is happening this very second from the pre-scripted list
+          const eventsNow = matchEvents.filter(e => e.minute === simTime);
+          let dynamicEventHappened = false;
+
+          if (eventsNow.length === 0) {
+             if (rand < homeGoalChance) {
+                 setCurrentScore(s => ({ ...s, home: s.home + 1 }));
+                 setBallPosition({ x: 95, y: 50 });
+                 dynamicEventHappened = true;
+             } else if (rand > (1 - awayGoalChance)) {
+                 setCurrentScore(s => ({ ...s, away: s.away + 1 }));
+                 setBallPosition({ x: 5, y: 50 });
+                 dynamicEventHappened = true;
+             }
+          }
+
+          if (!dynamicEventHappened) {
+            if (eventsNow.length > 0) {
+                eventsNow.forEach(e => {
+                    if (e.type === 'goal') {
+                            if (e.team === 'home') {
+                                setCurrentScore(s => ({ ...s, home: s.home + 1 }));
+                                setBallPosition({ x: 95, y: 50 }); // Ball in away net
+                            } else {
+                                setCurrentScore(s => ({ ...s, away: s.away + 1 }));
+                                setBallPosition({ x: 5, y: 50 }); // Ball in home net
+                            }
+                    }
+                });
+            } else {
+                // --- MOVEMENT LOGIC BASED ON TACTIC ---
+                
+                // Base movement modifiers
+                let homeXMod = 0;
+                let awayXMod = 0;
+
+                if (currentTactic === 'offensive') homeXMod = 25; // Push forward
+                if (currentTactic === 'defensive') homeXMod = -20; // Park the bus
+                if (currentTactic === 'counter') homeXMod = -5; // Sit deep initially
+
+                // Random Movement + Tactic Offset
+                setHomePlayerPos(prev => prev.map((p, idx) => {
+                    // Special logic for Counter Attack: Attackers (last 2) stay high
+                    let specificMod = homeXMod;
+                    if (currentTactic === 'counter' && idx >= 9) specificMod = 30; // Attackers cheat forward
+
+                    const targetX = p.x + specificMod; 
+                    
+                    // Move towards target X slowly, plus random noise
+                    const moveX = (Math.random() - 0.5) * 3;
+                    const moveY = (Math.random() - 0.5) * 3;
+                    
+                    // Bounded box 0-100
+                    let newX = Math.max(2, Math.min(98, p.x + moveX));
+                    // Bias towards tactical position
+                    if (newX < targetX) newX += 0.5;
+                    if (newX > targetX) newX -= 0.5;
+
+                    return {
+                        x: newX,
+                        y: Math.max(2, Math.min(98, p.y + moveY))
+                    };
+                }));
+
+                setAwayPlayerPos(prev => prev.map(p => ({
+                    x: Math.max(2, Math.min(98, p.x + (Math.random() - 0.5) * 2)),
+                    y: Math.max(2, Math.min(98, p.y + (Math.random() - 0.5) * 2))
+                })));
+
+                // Move Ball
+                setBallPosition(prev => ({
+                    x: Math.max(5, Math.min(95, prev.x + (Math.random() - 0.5) * 15)),
+                    y: Math.max(5, Math.min(95, prev.y + (Math.random() - 0.5) * 10))
+                }));
+            }
           }
 
       }, 150); // Speed of simulation
 
       return () => clearInterval(timer);
-  }, [isVisualMatch, simTime, matchResult, matchEvents]);
+  }, [isVisualMatch, simTime, matchResult, matchEvents, currentTactic]);
 
   const finishMatch = (result: MatchResult, opponent: Team) => {
       setIsVisualMatch(false);
@@ -660,6 +738,25 @@ export default function App() {
       setPreparingVisualMatch(false);
       setSoundEnabled(false);
       
+      // Use the VISUAL score if it was a visual match, otherwise use calculated
+      // This honors the "tactics changed the result" logic
+      const finalHomeScore = isVisualMatch ? currentScore.home : result.homeScore;
+      const finalAwayScore = isVisualMatch ? currentScore.away : result.awayScore;
+
+      const finalWin = finalHomeScore > finalAwayScore;
+      const finalDraw = finalHomeScore === finalAwayScore;
+
+      // Update the matchResult object to reflect actual visual outcome
+      const finalResult = {
+          ...result,
+          homeScore: finalHomeScore,
+          awayScore: finalAwayScore,
+          win: finalWin,
+          draw: finalDraw,
+          summary: isVisualMatch ? "Resultado influenciado pela estratégia do treinador." : result.summary
+      };
+      setMatchResult(finalResult);
+
       // UPDATE TABLE LOGIC
       setLeagueTable(prevTable => {
           const newTable = [...prevTable];
@@ -669,12 +766,12 @@ export default function App() {
           const userStats = newTable.find(t => t.id === userTeam?.id);
           if (userStats) {
               userStats.played += 1;
-              userStats.gf += result.homeScore;
-              userStats.ga += result.awayScore;
-              if (result.win) {
+              userStats.gf += finalHomeScore;
+              userStats.ga += finalAwayScore;
+              if (finalWin) {
                   userStats.points += 3;
                   userStats.won += 1;
-              } else if (result.draw) {
+              } else if (finalDraw) {
                   userStats.points += 1;
                   userStats.drawn += 1;
               } else {
@@ -702,12 +799,12 @@ export default function App() {
           const oppStats = newTable.find(t => t.id === opponent.id);
           if (oppStats) {
               oppStats.played += 1;
-              oppStats.gf += result.awayScore;
-              oppStats.ga += result.homeScore;
-              if (result.awayScore > result.homeScore) {
+              oppStats.gf += finalAwayScore;
+              oppStats.ga += finalHomeScore;
+              if (finalAwayScore > finalHomeScore) {
                   oppStats.points += 3;
                   oppStats.won += 1;
-              } else if (result.draw) {
+              } else if (finalDraw) {
                   oppStats.points += 1;
                   oppStats.drawn += 1;
               } else {
@@ -741,8 +838,8 @@ export default function App() {
           });
       });
 
-      if (result.win) setBudget(prev => prev + 2.5);
-      if (result.draw) setBudget(prev => prev + 1.0);
+      if (finalWin) setBudget(prev => prev + 2.5);
+      if (finalDraw) setBudget(prev => prev + 1.0);
   };
 
   // Career Mode Logic
@@ -1416,17 +1513,52 @@ export default function App() {
                             </div>
                             
                             {/* 2D Field */}
-                            <SoccerField 
-                                homeTeam={userTeam}
-                                awayTeam={currentOpponent}
-                                gameTime={simTime}
-                                ballPos={ballPosition}
-                                homePositions={homePlayerPos}
-                                awayPositions={awayPlayerPos}
-                            />
+                            <div className="relative">
+                                <SoccerField 
+                                    homeTeam={userTeam}
+                                    awayTeam={currentOpponent}
+                                    gameTime={simTime}
+                                    ballPos={ballPosition}
+                                    homePositions={homePlayerPos}
+                                    awayPositions={awayPlayerPos}
+                                />
+                                {/* Tactic Controls Overlay */}
+                                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-2">
+                                    <button 
+                                        onClick={() => setCurrentTactic('balanced')}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm transition-all ${currentTactic === 'balanced' ? 'bg-white text-slate-900 border-white scale-105 shadow-lg' : 'bg-black/40 text-white/80 border-white/30 hover:bg-black/60'}`}
+                                    >
+                                        Equilibrado
+                                    </button>
+                                    <button 
+                                        onClick={() => setCurrentTactic('offensive')}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm transition-all flex items-center gap-1 ${currentTactic === 'offensive' ? 'bg-emerald-500 text-white border-emerald-400 scale-105 shadow-lg' : 'bg-black/40 text-white/80 border-white/30 hover:bg-black/60'}`}
+                                    >
+                                        <Sword size={12} /> Ofensivo
+                                    </button>
+                                    <button 
+                                        onClick={() => setCurrentTactic('defensive')}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm transition-all flex items-center gap-1 ${currentTactic === 'defensive' ? 'bg-blue-500 text-white border-blue-400 scale-105 shadow-lg' : 'bg-black/40 text-white/80 border-white/30 hover:bg-black/60'}`}
+                                    >
+                                        <Shield size={12} /> Defensivo
+                                    </button>
+                                    <button 
+                                        onClick={() => setCurrentTactic('counter')}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm transition-all flex items-center gap-1 ${currentTactic === 'counter' ? 'bg-amber-500 text-white border-amber-400 scale-105 shadow-lg' : 'bg-black/40 text-white/80 border-white/30 hover:bg-black/60'}`}
+                                    >
+                                        <MoveRight size={12} /> Contra-Ataque
+                                    </button>
+                                </div>
+                            </div>
                             
-                            <div className="p-3 text-center bg-slate-800 text-xs text-slate-400">
-                                Transmissão oficial Brazuca Manager AI
+                            <div className="p-3 text-center bg-slate-800 text-xs text-slate-400 flex justify-center items-center gap-2">
+                                <span>Estratégia Atual:</span>
+                                <span className="text-white font-bold uppercase">
+                                    {currentTactic === 'balanced' && "Equilibrada"}
+                                    {currentTactic === 'offensive' && "Pressão Alta (Gols++)"}
+                                    {currentTactic === 'defensive' && "Retranca (Gols--)"}
+                                    {currentTactic === 'counter' && "Contra-Ataque Rápido"}
+                                </span>
                             </div>
                         </div>
                     </div>
