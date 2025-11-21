@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData } from './types';
+import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData, SocialComment } from './types';
 import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateFictionalTeamName, getFictionalLeagueNames, generateSocialFeed } from './services/geminiService';
 import { Card } from './components/Card';
 import { PlayerRow } from './components/PlayerRow';
@@ -47,7 +47,12 @@ import {
     X,
     User,
     Target,
-    Footprints
+    Footprints,
+    RefreshCw,
+    Send,
+    CalendarClock,
+    FileText,
+    Info
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -291,6 +296,9 @@ export default function App() {
   // Loan OUT State
   const [loaningPlayer, setLoaningPlayer] = useState<Player | null>(null);
   const [loanOffers, setLoanOffers] = useState<{team: string, value: number}[]>([]);
+  
+  // Renewals Log State
+  const [renewedLog, setRenewedLog] = useState<{playerName: string, weeks: number, weekRenewer: number}[]>([]);
 
   // Match State
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
@@ -344,7 +352,7 @@ export default function App() {
 
   // Social Feed State
   const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
-  const [expandedPostIds, setExpandedPostIds] = useState<Set<string>>(new Set());
+  const [commentText, setCommentText] = useState<{[key: string]: string}>({});
 
   // Logic to initialize table with FICTIONAL TEAMS + USER TEAM
   const initializeTable = (selectedTeam: Team) => {
@@ -515,6 +523,163 @@ export default function App() {
       setCareerData(newData);
       setLoading(false);
   };
+
+  // --- Game Logic Utils ---
+
+  const handleSkipWeek = () => {
+      // 1. Advance Week
+      setWeek(w => w + 1);
+      
+      // 2. Simulate other matches (World progresses)
+      simulateWorldMatches();
+
+      // 3. Decrease contracts
+      setSquad(prev => prev.map(p => ({
+          ...p,
+          contractWeeks: Math.max(0, p.contractWeeks - 1)
+      })));
+  };
+
+  const simulateWorldMatches = () => {
+      setLeagueTable(prev => {
+           const newTable = [...prev];
+           // Everyone simulates a game
+           newTable.forEach(t => {
+                // If not user team (or if user is skipping, also simulate user? For now, skip button implies NO match for user, just rest)
+                // Assuming 'Skip' means Bye week or just fast forward without playing
+                if (t.id !== userTeam?.id) {
+                   if (Math.random() > 0.2) { // 80% chance they played
+                       const gf = Math.floor(Math.random() * 4);
+                       const ga = Math.floor(Math.random() * 4);
+                       t.played += 1;
+                       t.gf += gf;
+                       t.ga += ga;
+                       if (gf > ga) { t.points += 3; t.won += 1; }
+                       else if (gf === ga) { t.points += 1; t.drawn += 1; }
+                       else { t.lost += 1; }
+                   }
+                }
+           });
+           return newTable;
+      });
+  }
+
+  const refreshMarket = async () => {
+      setLoading(true);
+      const newPlayers = await generateTransferMarket();
+      setMarket(newPlayers);
+      setLoading(false);
+  };
+
+  // --- Social Media Logic ---
+  const handleLike = (postId: string) => {
+      setSocialPosts(current => current.map(post => {
+          if (post.id === postId) {
+              return {
+                  ...post,
+                  isLiked: !post.isLiked,
+                  likes: post.isLiked ? post.likes - 1 : post.likes + 1
+              };
+          }
+          return post;
+      }));
+  };
+
+  const handleComment = (postId: string) => {
+      const text = commentText[postId];
+      if (!text || !text.trim()) return;
+
+      // 1. Add User Comment
+      const newComment: SocialComment = {
+          id: Math.random().toString(36).substr(2, 9),
+          author: "Você", // Or Manager Name
+          text: text
+      };
+
+      const targetPost = socialPosts.find(p => p.id === postId);
+
+      setSocialPosts(current => current.map(post => {
+          if (post.id === postId) {
+              return {
+                  ...post,
+                  comments: [...post.comments, newComment]
+              };
+          }
+          return post;
+      }));
+
+      setCommentText(prev => ({...prev, [postId]: ''}));
+
+      // 2. Generate Reply Logic (Simulating AI Response)
+      if (targetPost) {
+          setTimeout(() => {
+              let reply = "";
+              const lowerText = text.toLowerCase();
+
+              // Simple Sentiment Analysis Contextual
+              const positiveWords = ['boa', 'top', 'craque', 'mito', 'monstro', 'parabéns', 'jogou muito', 'golaço', 'amo', 'idolo', 'ídolo', 'fera', 'brabo'];
+              const negativeWords = ['ruim', 'lixo', 'bagre', 'horrível', 'vergonha', 'pipoqueiro', 'fora', 'pior', 'pereba'];
+              
+              if (positiveWords.some(w => lowerText.includes(w))) {
+                  const replies = [
+                      "Obrigado pelo apoio! Tmj 👊", 
+                      "Seguimos fortes! 💪", 
+                      "Valeu! Isso é fruto de muito trabalho.", 
+                      "A torcida merece! 🔥", 
+                      "Você é fera! Obrigado.",
+                      "Vamos por mais! 🏆"
+                  ];
+                  reply = replies[Math.floor(Math.random() * replies.length)];
+              } else if (negativeWords.some(w => lowerText.includes(w))) {
+                  const replies = [
+                      "Críticas fazem parte. Vou trabalhar dobrado.", 
+                      "Respeito sua opinião, mas vou dar a volta por cima.", 
+                      "Menos palavras, mais trabalho.", 
+                      "Calma, a temporada é longa.", 
+                      "👀",
+                      "No próximo jogo eu mostro meu valor."
+                  ];
+                  reply = replies[Math.floor(Math.random() * replies.length)];
+              } else if (lowerText.includes('?')) {
+                  const replies = [
+                      "Foco total no próximo jogo.", 
+                      "Ainda não posso falar sobre isso.", 
+                      "O trabalho continua dia após dia.", 
+                      "Segredo de estado 😂",
+                      "Em breve novidades!"
+                  ];
+                  reply = replies[Math.floor(Math.random() * replies.length)];
+              } else {
+                   const replies = ["👊👊", "⚽🔥", "Valeu!", "Obrigado!", "Tamo junto!", "Salve!"];
+                  reply = replies[Math.floor(Math.random() * replies.length)];
+              }
+
+              const replyComment: SocialComment = {
+                  id: Math.random().toString(36).substr(2, 9),
+                  author: targetPost.authorName,
+                  text: reply
+              };
+
+              setSocialPosts(current => current.map(post => {
+                  if (post.id === postId) {
+                      return {
+                          ...post,
+                          comments: [...post.comments, replyComment]
+                      };
+                  }
+                  return post;
+              }));
+
+          }, 1500 + Math.random() * 2000); // 1.5s to 3.5s delay for realism
+      }
+  };
+
+  const generatePostMatchSocial = () => {
+      // Add 3 new posts after match
+      const newPosts = generateSocialFeed().slice(0, 3); 
+      setSocialPosts(prev => [...newPosts, ...prev]);
+  };
+
 
   // --- View Renderers ---
 
@@ -981,9 +1146,12 @@ export default function App() {
                               
                               {/* Action Bar */}
                               <div className="flex items-center justify-between text-slate-500 text-sm border-t border-slate-100 pt-3">
-                                   <button className="flex items-center gap-2 hover:text-red-500 transition-colors group">
+                                   <button 
+                                      onClick={() => handleLike(post.id)}
+                                      className={`flex items-center gap-2 hover:text-red-500 transition-colors group ${post.isLiked ? 'text-red-500' : ''}`}
+                                   >
                                        <div className="p-2 rounded-full group-hover:bg-red-50 transition-colors">
-                                           <Heart size={18} className={post.isLiked ? "fill-red-500 text-red-500" : ""} />
+                                           <Heart size={18} className={post.isLiked ? "fill-current" : ""} />
                                        </div>
                                        <span className="font-bold">{post.likes}</span>
                                    </button>
@@ -991,13 +1159,39 @@ export default function App() {
                                        <div className="p-2 rounded-full group-hover:bg-blue-50 transition-colors">
                                            <MessageCircle size={18} />
                                        </div>
-                                       <span className="font-bold">Comentar</span>
+                                       <span className="font-bold">{post.comments.length > 0 ? post.comments.length : 'Comentar'}</span>
                                    </button>
-                                   <button className="flex items-center gap-2 hover:text-green-500 transition-colors group">
-                                       <div className="p-2 rounded-full group-hover:bg-green-50 transition-colors">
-                                           <Zap size={18} />
-                                       </div>
-                                   </button>
+                              </div>
+
+                              {/* Comments Section */}
+                              <div className="mt-4 bg-slate-100 rounded-lg p-3">
+                                  {post.comments.length > 0 && (
+                                      <div className="space-y-2 mb-3">
+                                          {post.comments.map((comment, i) => (
+                                              <div key={i} className="text-sm">
+                                                  <span className="font-bold text-slate-700 mr-2">{comment.author}:</span>
+                                                  <span className="text-slate-600">{comment.text}</span>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  )}
+                                  
+                                  <div className="flex items-center gap-2">
+                                      <input 
+                                          type="text" 
+                                          placeholder="Escreva um comentário..."
+                                          className="flex-1 bg-white border-slate-300 rounded-full px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                                          value={commentText[post.id] || ''}
+                                          onChange={(e) => setCommentText({...commentText, [post.id]: e.target.value})}
+                                          onKeyPress={(e) => e.key === 'Enter' && handleComment(post.id)}
+                                      />
+                                      <button 
+                                          onClick={() => handleComment(post.id)}
+                                          className="p-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-700"
+                                      >
+                                          <Send size={14} />
+                                      </button>
+                                  </div>
                               </div>
                           </div>
                       </div>
@@ -1015,9 +1209,21 @@ export default function App() {
           <h2 className="text-2xl md:text-3xl font-bold text-slate-800">Início</h2>
           <p className="text-slate-500">Bem-vindo ao {userTeam?.name}</p>
         </div>
-        <div className="text-right hidden md:block">
-          <p className="text-sm text-slate-500 font-bold uppercase">Temporada 1</p>
-          <p className="text-xs text-slate-400">Semana {week}</p>
+        <div className="flex items-center gap-4">
+            {/* Botão Pular Semana */}
+            <button 
+                onClick={handleSkipWeek}
+                className="flex items-center gap-2 bg-amber-100 text-amber-800 px-4 py-2 rounded-lg font-bold hover:bg-amber-200 transition-colors border border-amber-200"
+                title="Avança 1 semana e reduz contratos do elenco"
+            >
+                <CalendarClock size={20} />
+                <span className="hidden md:inline">Pular Semana</span>
+            </button>
+
+            <div className="text-right hidden md:block">
+                <p className="text-sm text-slate-500 font-bold uppercase">Temporada 1</p>
+                <p className="text-xs text-slate-400">Semana {week}</p>
+            </div>
         </div>
       </header>
 
@@ -1092,8 +1298,9 @@ export default function App() {
              </button>
         </div>
 
-        {/* Side Column - Highlights & Market */}
+        {/* Side Column - Highlights, Market, Renewals */}
         <div className="space-y-6">
+             {/* Destaques */}
              <Card title="Destaques do Elenco">
                 <div className="space-y-2">
                     {squad.sort((a,b) => b.rating - a.rating).slice(0, 4).map(player => (
@@ -1110,6 +1317,7 @@ export default function App() {
                 </div>
              </Card>
 
+             {/* Link Mercado */}
              <button 
                 onClick={() => setView('market')}
                 className="w-full p-4 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-between group"
@@ -1125,6 +1333,25 @@ export default function App() {
                 </div>
                 <MoveRight size={16} className="text-slate-400 group-hover:text-emerald-600 transition-colors" />
              </button>
+
+             {/* Renovações Recentes */}
+             <Card title="Últimas Renovações" className="border-l-4 border-l-blue-500">
+                 <div className="space-y-3 max-h-40 overflow-y-auto">
+                     {renewedLog.length === 0 ? (
+                         <p className="text-xs text-slate-400 py-2">Nenhuma renovação recente.</p>
+                     ) : (
+                         renewedLog.slice(0, 5).map((log, i) => (
+                             <div key={i} className="flex items-center justify-between text-sm p-2 bg-slate-50 rounded">
+                                 <span className="font-bold text-slate-700 truncate">{log.playerName}</span>
+                                 <div className="flex items-center gap-1 text-blue-600 font-bold text-xs">
+                                     <FileText size={12} />
+                                     <span>{log.weeks} sem.</span>
+                                 </div>
+                             </div>
+                         ))
+                     )}
+                 </div>
+             </Card>
         </div>
       </div>
     </div>
@@ -1141,6 +1368,18 @@ export default function App() {
                 </span>
             </div>
         </div>
+
+        {/* Dica Visual de Contratos */}
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+            <Info className="text-blue-600 shrink-0 mt-0.5" size={20} />
+            <div>
+                <p className="text-sm text-blue-900 font-bold">Gestão de Contratos</p>
+                <p className="text-sm text-blue-700 mt-1">
+                    Se o botão <span className="font-bold text-amber-600 bg-amber-100 px-1 rounded border border-amber-200 mx-1">Renovar</span> estiver <span className="font-bold">piscando</span>, o contrato do jogador está prestes a encerrar (menos de 10 semanas).
+                </p>
+            </div>
+        </div>
+
         <Card className="overflow-hidden">
             <div className="max-h-[70vh] overflow-y-auto">
                 {squad.sort((a, b) => b.rating - a.rating).map((player) => (
@@ -1155,7 +1394,12 @@ export default function App() {
                              const cost = 2; // 2M cost
                              if (budget >= cost) {
                                  setBudget(prev => prev - cost);
-                                 setSquad(prev => prev.map(pl => pl.id === p.id ? {...pl, contractWeeks: pl.contractWeeks + 50} : pl));
+                                 const addedWeeks = 50;
+                                 setSquad(prev => prev.map(pl => pl.id === p.id ? {...pl, contractWeeks: pl.contractWeeks + addedWeeks} : pl));
+                                 
+                                 // Log Renewal for Dashboard
+                                 setRenewedLog(prev => [{playerName: p.name, weeks: p.contractWeeks + addedWeeks, weekRenewer: week}, ...prev]);
+
                                  alert(`Contrato de ${p.name} renovado!`);
                              } else {
                                  alert("Orçamento insuficiente.");
@@ -1280,11 +1524,26 @@ export default function App() {
 
   const renderMarket = () => (
     <div className="p-4 md:p-8 pb-24">
-        <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-800">Mercado</h2>
-            <div className="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-full shadow-sm border border-emerald-200">
-                <span className="text-xs font-bold uppercase mr-2">Orçamento</span>
-                <span className="font-bold text-lg">$ {budget.toFixed(1)}M</span>
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+            <div>
+                <h2 className="text-2xl md:text-3xl font-bold text-slate-800">Mercado</h2>
+                <p className="text-slate-500 text-sm">Encontre os melhores talentos</p>
+            </div>
+            <div className="flex items-center gap-3">
+                {/* Botão Atualizar Lista */}
+                <button 
+                    onClick={refreshMarket}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 font-bold hover:bg-slate-50 text-sm shadow-sm"
+                >
+                    <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                    Atualizar Lista
+                </button>
+
+                <div className="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-full shadow-sm border border-emerald-200">
+                    <span className="text-xs font-bold uppercase mr-2">Orçamento</span>
+                    <span className="font-bold text-lg">$ {budget.toFixed(1)}M</span>
+                </div>
             </div>
         </div>
         
@@ -1505,7 +1764,7 @@ export default function App() {
                   </div>
 
                   {/* Field Area */}
-                  <div className="w-full max-w-4xl relative">
+                  <div className="w-full max-w-4xl relative shadow-2xl rounded-lg overflow-hidden border-4 border-slate-800">
                       <SoccerField 
                           homeTeam={userTeam!} 
                           awayTeam={{id: 'opp', name: currentOpponent?.name || '', primaryColor: 'bg-white', secondaryColor: 'text-black'}} 
@@ -1514,16 +1773,19 @@ export default function App() {
                           homePositions={homePlayerPos}
                           awayPositions={awayPlayerPos}
                       />
-                      
-                      {/* Event Feed Overlay */}
-                      <div className="absolute bottom-4 left-4 right-4 flex flex-col-reverse items-start gap-2 pointer-events-none">
-                           {matchEvents.slice(Math.max(0, lastEventIndex - 2), lastEventIndex + 1).map((ev, i) => (
-                               <div key={i} className="bg-black/70 text-white px-3 py-1.5 rounded-lg text-sm md:text-base backdrop-blur-sm animate-in slide-in-from-bottom-2">
-                                   <span className="font-bold text-emerald-400 mr-2">{ev.minute}'</span>
-                                   {ev.description}
+                  </div>
+
+                  {/* Event Feed (Moved Below) */}
+                  <div className="w-full max-w-4xl mt-4 bg-slate-900/80 rounded-xl p-4 border border-slate-700 h-32 overflow-y-auto shadow-inner">
+                       <div className="flex flex-col-reverse justify-end min-h-full gap-2">
+                           {matchEvents.slice(0, lastEventIndex + 1).slice(-5).reverse().map((ev, i) => ( // Show last 5, newest first
+                               <div key={i} className="flex items-start gap-3 text-slate-300 animate-in slide-in-from-left-2 duration-300 border-b border-slate-800/50 pb-1 last:border-0">
+                                   <span className="font-mono font-bold text-emerald-400 min-w-[2rem]">{ev.minute}'</span>
+                                   <span className="text-sm md:text-base">{ev.description}</span>
                                </div>
                            ))}
-                      </div>
+                           {lastEventIndex === -1 && <p className="text-slate-500 italic text-sm text-center mt-4">A partida está começando...</p>}
+                       </div>
                   </div>
 
                   {/* Controls */}
@@ -1635,6 +1897,7 @@ export default function App() {
       
       setMatchResult(result);
       updateLeagueTable(result);
+      generatePostMatchSocial(); // Generate posts
       setIsSimulating(false);
   };
 
@@ -1772,6 +2035,7 @@ export default function App() {
       };
       setMatchResult(result);
       updateLeagueTable(result);
+      generatePostMatchSocial(); // Generate posts
   };
 
   const updateLeagueTable = (result: MatchResult) => {
