@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType } from './types';
-import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateScoutReport, generateFictionalTeamName, getFictionalLeagueNames } from './services/geminiService';
+import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData } from './types';
+import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateScoutReport, generateFictionalTeamName, getFictionalLeagueNames, generateSocialFeed } from './services/geminiService';
 import { Card } from './components/Card';
 import { PlayerRow } from './components/PlayerRow';
 import { 
@@ -29,7 +29,19 @@ import {
     Sword,
     MoveRight,
     Target,
-    Timer
+    Timer,
+    Smartphone,
+    Heart,
+    MessageCircle,
+    Send,
+    Camera,
+    Dumbbell,
+    Coffee,
+    Eye,
+    EyeOff,
+    ArrowLeft,
+    Medal,
+    TrendingUp
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -300,11 +312,17 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Rumo ao Estrelato State
-  const [rtsStep, setRtsStep] = useState<'form' | 'simulating' | 'offers'>('form');
-  const [createdPlayer, setCreatedPlayer] = useState<{name: string, position: Position} | null>(null);
-  const [scoutText, setScoutText] = useState<string>("");
-  const [contractOffers, setContractOffers] = useState<Team[]>([]);
+  // CAREER MODE STATE (Rumo ao Estrelato)
+  const [careerData, setCareerData] = useState<CareerData | null>(null);
+  const [careerTempName, setCareerTempName] = useState("");
+  const [careerTempPos, setCareerTempPos] = useState<Position>(Position.ATT);
+  const [careerOffers, setCareerOffers] = useState<Array<{name: string, color: string}>>([]);
+
+  // Social Feed State
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
+  const [commentInputs, setCommentInputs] = useState<{[key: string]: string}>({});
+  // NEW: Expand/Collapse images state
+  const [expandedPostIds, setExpandedPostIds] = useState<Set<string>>(new Set());
 
   // Logic to initialize table with FICTIONAL TEAMS + USER TEAM
   const initializeTable = (selectedTeam: Team) => {
@@ -368,6 +386,7 @@ export default function App() {
         setUserTeam(team);
         setSquad(players);
         initializeTable(team); // Pass team to init table
+        setSocialPosts(generateSocialFeed()); // Generate social feed
         setView('dashboard');
         
         // Pre-fetch market in background
@@ -381,31 +400,83 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    // Full reset state
-    setSquad([]);
-    setMarket([]);
-    setMatchResult(null);
-    setUserTeam(null);
-    setView('select-team');
-    setBudget(50);
-    setWeek(1);
-    setIsSimulating(false);
-    setLeagueTable([]);
-    setTrophies([]);
-    // Reset RTS state
-    setRtsStep('form');
-    setCreatedPlayer(null);
-    setScoutText("");
-    setContractOffers([]);
-    // Reset Visual Sim
-    setIsVisualMatch(false);
-    setPreparingVisualMatch(false);
-    setSoundEnabled(false);
-    setCurrentTactic('balanced');
-    setIsHalftime(false);
-    setHasPlayedSecondHalf(false);
+  // --- Career Mode Handlers ---
+  
+  const handleStartCareer = () => {
+      setCareerData(null);
+      setCareerTempName("");
+      setCareerTempPos(Position.ATT);
+      setView('career-intro');
   };
+
+  const handlePlayAmateurMatch = async () => {
+      if (!careerTempName) {
+          alert("Digite o nome do seu jogador!");
+          return;
+      }
+      setLoading(true);
+      
+      // Simulate "Playing"
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Generate Offers
+      // Requirement: Cruzeiro with different name (Raposa Celeste)
+      const offers = [
+          { name: "Raposa Celeste", color: "bg-blue-600" }, // The "Cruzeiro" fake
+          { name: generateFictionalTeamName(), color: "bg-red-600" },
+          { name: generateFictionalTeamName(), color: "bg-amber-500" }
+      ];
+      setCareerOffers(offers);
+      setLoading(false);
+  };
+
+  const handleAcceptCareerOffer = (offer: {name: string, color: string}) => {
+      setCareerData({
+          playerName: careerTempName,
+          position: careerTempPos,
+          teamName: offer.name,
+          teamColor: offer.color,
+          matchesPlayed: 0,
+          goals: 0,
+          assists: 0,
+          rating: 65, // Start rating
+          history: []
+      });
+      setView('career-hub');
+  };
+
+  const handlePlayCareerMatch = async () => {
+      if (!careerData || careerData.matchesPlayed >= 80) return;
+      
+      setLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Fast sim
+      
+      // Random performance logic
+      const scored = Math.random() > 0.6; // 40% chance to score
+      const assisted = Math.random() > 0.8; // 20% chance to assist
+      const ratingImprovement = Math.random() > 0.5 ? 1 : 0;
+      
+      const opponent = generateFictionalTeamName();
+      const myGoals = scored ? (Math.random() > 0.9 ? 2 : 1) : 0;
+      const resultText = scored 
+        ? `Vitória! Você marcou ${myGoals} gol(s) contra ${opponent}.`
+        : `Empate/Derrota contra ${opponent}. Atuação discreta.`;
+
+      setCareerData(prev => {
+          if (!prev) return null;
+          return {
+              ...prev,
+              matchesPlayed: prev.matchesPlayed + 1,
+              goals: prev.goals + myGoals,
+              assists: prev.assists + (assisted ? 1 : 0),
+              rating: prev.rating + ratingImprovement,
+              history: [resultText, ...prev.history]
+          };
+      });
+      setLoading(false);
+  };
+
+  // --- End Career Mode Handlers ---
 
   const handleSkipWeek = () => {
       setWeek(prev => prev + 1);
@@ -423,7 +494,52 @@ export default function App() {
       });
 
       setSquad(updatedSquad);
+      setSocialPosts(generateSocialFeed()); // Refresh feed each week
+      setExpandedPostIds(new Set()); // Reset open photos
       alert("Semana pulada! Contratos atualizados.");
+  };
+
+  // Social Feed Handlers
+  const handleLikePost = (postId: string) => {
+      setSocialPosts(prev => prev.map(post => {
+          if (post.id === postId) {
+              return {
+                  ...post,
+                  likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+                  isLiked: !post.isLiked
+              };
+          }
+          return post;
+      }));
+  };
+
+  const handleCommentPost = (postId: string) => {
+      const text = commentInputs[postId];
+      if (!text || text.trim() === "") return;
+
+      setSocialPosts(prev => prev.map(post => {
+          if (post.id === postId) {
+              return {
+                  ...post,
+                  comments: [...post.comments, { id: Math.random().toString(), author: "Você", text }]
+              };
+          }
+          return post;
+      }));
+      
+      setCommentInputs(prev => ({...prev, [postId]: ""}));
+  };
+
+  const togglePostImage = (postId: string) => {
+      setExpandedPostIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(postId)) {
+              newSet.delete(postId);
+          } else {
+              newSet.add(postId);
+          }
+          return newSet;
+      });
   };
 
   // --- Buying / Negotiation Logic ---
@@ -868,57 +984,6 @@ export default function App() {
       if (finalDraw) setBudget(prev => prev + 1.0);
   };
 
-  // Career Mode Logic
-  const startCareerMode = () => {
-      setRtsStep('form');
-      setCreatedPlayer(null);
-      setView('career-mode');
-  };
-
-  const handleAmateurMatch = async (name: string, position: Position) => {
-      setCreatedPlayer({ name, position });
-      setRtsStep('simulating');
-      try {
-        const report = await generateScoutReport(name, position);
-        setScoutText(report);
-        const cruzeiro = BRAZILIAN_TEAMS.find(t => t.id === 'cru');
-        if (!cruzeiro) throw new Error("Cruzeiro not found");
-        const otherTeams = BRAZILIAN_TEAMS.filter(t => t.id !== 'cru').sort(() => 0.5 - Math.random()).slice(0, 2);
-        setContractOffers([cruzeiro, ...otherTeams]);
-        setRtsStep('offers');
-      } catch (e) {
-          console.error(e);
-          setRtsStep('form'); 
-      }
-  };
-
-  const handleAcceptOffer = async (team: Team) => {
-      if (!createdPlayer) return;
-      setLoading(true);
-      try {
-        const players = await generateSquadForTeam(team.name);
-        const newPlayer: Player = {
-            id: "my-custom-player",
-            name: createdPlayer.name,
-            position: createdPlayer.position,
-            rating: 78, 
-            age: 18,
-            value: 10,
-            contractWeeks: 52,
-            team: team.name
-        };
-        setUserTeam(team);
-        setSquad([newPlayer, ...players]);
-        initializeTable(team); // Pass team
-        setView('dashboard');
-        generateTransferMarket().then(setMarket);
-      } catch (error) {
-          console.error("Error accepting offer", error);
-      } finally {
-          setLoading(false);
-      }
-  };
-
   const updatePlayerName = (id: string, newName: string) => {
       setSquad(prev => prev.map(p => p.id === id ? { ...p, name: newName } : p));
   };
@@ -930,14 +995,17 @@ export default function App() {
       }
   };
 
-  if (view !== 'career-mode' && (view === 'select-team' || !userTeam)) {
+  // Helper to check if we are in a career specific view that shouldn't show main selection
+  const isCareerView = view === 'career-intro' || view === 'career-hub';
+
+  if (!isCareerView && (view === 'select-team' || !userTeam)) {
     return <TeamSelection onSelect={handleTeamSelect} />;
   }
 
   const avgRating = (squad.reduce((acc, p) => acc + p.rating, 0) / (squad.length || 1)).toFixed(0);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-50 relative">
+    <div className={`flex flex-col lg:flex-row min-h-screen bg-slate-50 relative ${isCareerView ? 'overflow-hidden' : ''}`}>
       
       {/* SELL MODAL */}
       {sellingPlayer && (
@@ -1106,7 +1174,7 @@ export default function App() {
           </div>
       )}
 
-      {view !== 'career-mode' && (
+      {!isCareerView && (
           <Sidebar 
             currentView={view} 
             onChangeView={setView} 
@@ -1114,9 +1182,9 @@ export default function App() {
           />
       )}
       
-      <main className={`flex-1 p-4 pb-24 lg:p-8 overflow-y-auto h-screen scroll-smooth ${view === 'career-mode' ? 'bg-slate-900 text-white flex items-center justify-center' : ''}`}>
+      <main className={`flex-1 p-4 pb-24 lg:p-8 overflow-y-auto h-screen scroll-smooth ${isCareerView ? 'bg-slate-900 text-white flex items-center justify-center' : ''}`}>
         
-        {view !== 'career-mode' && (
+        {!isCareerView && view !== 'social' && (
             <div className="flex flex-row overflow-x-auto md:grid md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8 pb-2 md:pb-0 snap-x snap-mandatory no-scrollbar">
                 <StatsCard 
                     title="Orçamento" 
@@ -1170,41 +1238,41 @@ export default function App() {
                     </button>
 
                     <button 
-                        onClick={() => setView('trophies')}
+                        onClick={handleStartCareer}
                         className="bg-white hover:bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
                     >
-                        <div className="p-3 bg-amber-100 rounded-full text-amber-600 group-hover:scale-110 transition-transform">
-                            <Award size={24} />
+                         <div className="p-3 bg-amber-100 rounded-full text-amber-600 group-hover:scale-110 transition-transform">
+                            <Medal size={24} />
                         </div>
                         <div>
-                            <h3 className="font-bold text-amber-900 text-sm">Troféus</h3>
-                            <p className="text-[10px] text-amber-700">Ver conquistas</p>
-                        </div>
-                    </button>
-                    
-                    <button 
-                        onClick={() => setView('settings')}
-                        className="bg-white hover:bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
-                    >
-                        <div className="p-3 bg-slate-100 rounded-full text-slate-600 group-hover:scale-110 transition-transform">
-                            <Settings size={24} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-slate-800 text-sm">Ajustes</h3>
-                            <p className="text-[10px] text-slate-600">Editar clube</p>
+                            <h3 className="font-bold text-amber-900 text-sm">Rumo ao Estrelato</h3>
+                            <p className="text-[10px] text-amber-700">Modo Carreira Jogador</p>
                         </div>
                     </button>
 
                     <button 
-                        onClick={() => setView('squad')}
-                        className="bg-white hover:bg-blue-50 border border-blue-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
+                        onClick={() => setView('social')}
+                        className="bg-white hover:bg-pink-50 border border-pink-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
                     >
-                        <div className="p-3 bg-blue-100 rounded-full text-blue-600 group-hover:scale-110 transition-transform">
-                            <Briefcase size={24} />
+                        <div className="p-3 bg-pink-100 rounded-full text-pink-600 group-hover:scale-110 transition-transform">
+                            <Smartphone size={24} />
                         </div>
                         <div>
-                            <h3 className="font-bold text-blue-800 text-sm">Gestão</h3>
-                            <p className="text-[10px] text-blue-600">Gerir Contratos</p>
+                            <h3 className="font-bold text-pink-900 text-sm">Rede Social</h3>
+                            <p className="text-[10px] text-pink-700">BrazucaGram</p>
+                        </div>
+                    </button>
+                    
+                    <button 
+                        onClick={() => setView('trophies')}
+                        className="bg-white hover:bg-purple-50 border border-purple-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
+                    >
+                        <div className="p-3 bg-purple-100 rounded-full text-purple-600 group-hover:scale-110 transition-transform">
+                            <Award size={24} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-purple-900 text-sm">Troféus</h3>
+                            <p className="text-[10px] text-purple-700">Ver conquistas</p>
                         </div>
                     </button>
                 </div>
@@ -1224,23 +1292,7 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="bg-blue-100 p-2 rounded-full text-blue-600">
-                                <Star size={20} />
-                            </div>
-                            <h3 className="text-lg font-bold text-slate-800">Rumo ao Estrelato</h3>
-                        </div>
-                        <p className="text-slate-500 text-sm mb-6">Crie seu próprio jogador, jogue na várzea e consiga um contrato profissional.</p>
-                        <button 
-                            onClick={startCareerMode}
-                            className="w-full bg-slate-50 text-blue-600 border border-blue-200 font-bold py-3 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <UserPlus size={18} />
-                            Criar Jogador
-                        </button>
-                    </div>
-
+                    
                     <Card title="Classificação Rápida">
                         <div className="space-y-2">
                              {leagueTable.slice(0, 5).map((t, i) => (
@@ -1255,7 +1307,349 @@ export default function App() {
                              <button onClick={() => setView('standings')} className="w-full text-center text-xs text-blue-600 hover:underline mt-2">Ver tabela completa</button>
                         </div>
                     </Card>
+                    
+                    <button 
+                        onClick={() => setView('settings')}
+                        className="bg-white hover:bg-slate-50 border border-slate-200 p-6 rounded-xl flex items-center justify-between transition-colors shadow-sm group"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="p-4 bg-slate-100 rounded-full text-slate-600 group-hover:scale-110 transition-transform">
+                                <Settings size={24} />
+                            </div>
+                            <div className="text-left">
+                                <h3 className="font-bold text-slate-800">Ajustes do Clube</h3>
+                                <p className="text-xs text-slate-500">Editar nome, cores e elenco</p>
+                            </div>
+                        </div>
+                        <MoveRight size={20} className="text-slate-400 group-hover:text-slate-600" />
+                    </button>
                 </div>
+            </div>
+        )}
+
+        {/* CAREER MODE: INTRO / CREATION / OFFERS */}
+        {view === 'career-intro' && (
+            <div className="w-full max-w-2xl mx-auto bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 animate-fade-in">
+                {!loading && careerOffers.length === 0 && (
+                    <>
+                        <div className="text-center mb-8">
+                            <h2 className="text-3xl font-bold text-white mb-2">Inicie sua Lenda</h2>
+                            <p className="text-slate-400">Crie seu jogador e prove seu valor na peneira.</p>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">Nome do Atleta</label>
+                                <input 
+                                    type="text" 
+                                    value={careerTempName}
+                                    onChange={(e) => setCareerTempName(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:border-amber-500 outline-none transition-colors"
+                                    placeholder="Ex: Ronaldinho Jr."
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">Posição Preferida</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[Position.ATT, Position.MID, Position.DEF, Position.GK].map(pos => (
+                                        <button
+                                            key={pos}
+                                            onClick={() => setCareerTempPos(pos)}
+                                            className={`p-3 rounded-lg border font-medium transition-all ${careerTempPos === pos ? 'bg-amber-500 border-amber-500 text-black' : 'bg-slate-900 border-slate-600 text-slate-400 hover:border-slate-500'}`}
+                                        >
+                                            {pos}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={handlePlayAmateurMatch}
+                                className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-bold py-4 rounded-xl text-lg shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02]"
+                            >
+                                Jogar Partida da Peneira
+                            </button>
+                             <button 
+                                onClick={() => setView('dashboard')}
+                                className="w-full text-slate-500 hover:text-white py-2 text-sm font-medium"
+                            >
+                                Cancelar e Voltar
+                            </button>
+                        </div>
+                    </>
+                )}
+
+                {loading && (
+                    <div className="text-center py-10">
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-amber-500 mx-auto mb-6"></div>
+                        <h3 className="text-2xl font-bold text-white mb-2">Jogando Partida Amadora...</h3>
+                        <p className="text-slate-400">Os olheiros estão observando seu desempenho.</p>
+                    </div>
+                )}
+
+                {!loading && careerOffers.length > 0 && (
+                    <div className="animate-fade-in">
+                         <div className="text-center mb-8">
+                            <div className="inline-flex items-center justify-center p-3 bg-green-500/20 text-green-400 rounded-full mb-4">
+                                <CheckCircle size={32} />
+                            </div>
+                            <h2 className="text-3xl font-bold text-white mb-2">Aprovado!</h2>
+                            <p className="text-slate-400">Você impressionou. Escolha seu primeiro clube profissional.</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            {careerOffers.map((offer, idx) => (
+                                <button 
+                                    key={idx}
+                                    onClick={() => handleAcceptCareerOffer(offer)}
+                                    className={`w-full bg-white text-slate-900 p-4 rounded-xl flex items-center justify-between group hover:bg-amber-50 transition-colors border-l-8 ${offer.color === 'bg-blue-600' ? 'border-blue-600' : offer.color === 'bg-red-600' ? 'border-red-600' : 'border-amber-500'}`}
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className={`w-12 h-12 rounded-full ${offer.color} text-white flex items-center justify-center font-bold shadow-md`}>
+                                            {offer.name.substring(0, 2).toUpperCase()}
+                                        </div>
+                                        <div className="text-left">
+                                            <span className="block font-bold text-lg">{offer.name}</span>
+                                            <span className="text-sm text-slate-500">Contrato Profissional</span>
+                                        </div>
+                                    </div>
+                                    <MoveRight className="text-slate-400 group-hover:text-slate-800" />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
+
+        {/* CAREER MODE: HUB (80 Matches) */}
+        {view === 'career-hub' && careerData && (
+            <div className="w-full max-w-4xl mx-auto animate-fade-in space-y-6">
+                
+                <div className="flex items-center justify-between bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg">
+                    <div className="flex items-center gap-4">
+                        <div className={`w-16 h-16 rounded-full ${careerData.teamColor} flex items-center justify-center text-white font-bold text-xl border-2 border-white shadow-lg`}>
+                            {careerData.teamName.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-bold text-white">{careerData.playerName}</h2>
+                            <p className="text-slate-400">{careerData.position} • {careerData.teamName}</p>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-3xl font-bold text-amber-400">{careerData.rating}</div>
+                        <div className="text-xs text-slate-500 uppercase font-bold">OVR</div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center">
+                        <TrendingUp className="text-emerald-400 mb-2" size={24} />
+                        <span className="text-2xl font-bold text-white">{careerData.goals}</span>
+                        <span className="text-xs text-slate-500 uppercase">Gols Marcados</span>
+                    </div>
+                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center">
+                        <Users className="text-blue-400 mb-2" size={24} />
+                        <span className="text-2xl font-bold text-white">{careerData.assists}</span>
+                        <span className="text-xs text-slate-500 uppercase">Assistências</span>
+                    </div>
+                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center">
+                        <div className="text-amber-500 mb-2 font-bold text-lg">
+                             {careerData.matchesPlayed} / 80
+                        </div>
+                        <span className="text-xs text-slate-500 uppercase">Jogos na Temporada</span>
+                        <div className="w-full bg-slate-700 h-2 rounded-full mt-2 overflow-hidden">
+                            <div 
+                                className="bg-amber-500 h-full transition-all duration-500" 
+                                style={{ width: `${(careerData.matchesPlayed / 80) * 100}%` }}
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+
+                {careerData.matchesPlayed < 80 ? (
+                    <button 
+                        onClick={handlePlayCareerMatch}
+                        disabled={loading}
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-6 rounded-2xl text-xl shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-3"
+                    >
+                        {loading ? (
+                            <>
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                                Jogando...
+                            </>
+                        ) : (
+                            <>
+                                <PlayCircle size={28} />
+                                Jogar Próxima Partida
+                            </>
+                        )}
+                    </button>
+                ) : (
+                     <div className="bg-amber-500 text-black p-8 rounded-2xl text-center">
+                        <h2 className="text-3xl font-bold mb-2">Temporada Encerrada!</h2>
+                        <p className="mb-6 font-medium">Você completou os 80 jogos. Que carreira incrível!</p>
+                        <button 
+                            onClick={() => setView('dashboard')}
+                            className="bg-black text-white px-6 py-3 rounded-lg font-bold hover:bg-slate-800"
+                        >
+                            Voltar ao Menu Principal
+                        </button>
+                    </div>
+                )}
+
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                    <h3 className="text-lg font-bold text-white mb-4">Histórico Recente</h3>
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                        {careerData.history.length === 0 ? (
+                            <p className="text-slate-500 text-center py-4">Nenhuma partida jogada ainda.</p>
+                        ) : (
+                            careerData.history.map((log, i) => (
+                                <div key={i} className="p-3 bg-slate-700/50 rounded-lg text-slate-300 text-sm border-l-2 border-slate-600">
+                                    <span className="font-bold text-slate-500 mr-2">Jogo {careerData.matchesPlayed - i}</span>
+                                    {log}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+                
+                <button 
+                    onClick={() => setView('dashboard')}
+                    className="w-full text-slate-500 hover:text-white py-4 text-sm font-medium"
+                >
+                    Sair do Modo Carreira
+                </button>
+            </div>
+        )}
+
+        {view === 'social' && (
+            <div className="animate-fade-in max-w-2xl mx-auto">
+                 <div className="flex items-center gap-2 mb-6 sticky top-0 bg-slate-50 z-40 py-2">
+                    <button 
+                        onClick={() => setView('dashboard')}
+                        className="p-2 hover:bg-slate-200 rounded-full text-slate-700 transition-colors"
+                    >
+                        <ArrowLeft size={24} />
+                    </button>
+                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                        <Smartphone size={28} className="text-pink-600" />
+                        BrazucaGram
+                    </h2>
+                 </div>
+                 
+                 <div className="space-y-6">
+                    {socialPosts.map((post) => (
+                        <div key={post.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                            {/* Header */}
+                            <div className="p-3 flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-400 to-pink-600 flex items-center justify-center text-white font-bold text-xs">
+                                    {post.authorName.charAt(0)}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-slate-800 leading-none">{post.authorName}</p>
+                                    {post.teamName && <p className="text-[10px] text-slate-500">{post.teamName}</p>}
+                                </div>
+                                <span className="ml-auto text-xs text-slate-400">{post.timeAgo}</span>
+                            </div>
+                            
+                            {/* Toggle Photo Visibility */}
+                            <div className="px-3 pb-2 flex justify-end">
+                                <button 
+                                    onClick={() => togglePostImage(post.id)}
+                                    className="text-xs text-slate-500 flex items-center gap-1 hover:text-slate-800"
+                                >
+                                    {expandedPostIds.has(post.id) ? (
+                                        <><EyeOff size={14} /> Ocultar Foto</>
+                                    ) : (
+                                        <><Eye size={14} /> Ver Foto</>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Fake Photo (Conditional) */}
+                            {expandedPostIds.has(post.id) && (
+                                <div className={`aspect-square w-full flex items-center justify-center relative animate-fade-in
+                                    ${post.imageType === 'training' ? 'bg-gradient-to-br from-green-400 to-emerald-600' : 
+                                      post.imageType === 'match' ? 'bg-gradient-to-br from-blue-500 to-indigo-700' :
+                                      post.imageType === 'leisure' ? 'bg-gradient-to-br from-amber-300 to-orange-500' :
+                                      'bg-gradient-to-br from-purple-500 to-pink-600'
+                                    }
+                                `}>
+                                    <div className="text-white opacity-80 transform scale-150">
+                                        {post.imageType === 'training' && <Dumbbell size={48} />}
+                                        {post.imageType === 'match' && <Trophy size={48} />}
+                                        {post.imageType === 'leisure' && <Coffee size={48} />}
+                                        {post.imageType === 'celebration' && <Star size={48} />}
+                                    </div>
+                                    
+                                    {/* Photo Tag/Overlay */}
+                                    <div className="absolute bottom-3 right-3 bg-black/30 backdrop-blur-md px-2 py-1 rounded text-white text-[10px] font-bold flex items-center gap-1">
+                                        <Camera size={10} /> 
+                                        {post.imageType === 'training' ? 'CT do Clube' : 
+                                         post.imageType === 'match' ? 'Dia de Jogo' : 
+                                         'Lifestyle'}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Actions & Content */}
+                            <div className="p-3">
+                                <div className="flex gap-4 mb-2">
+                                    <button 
+                                        onClick={() => handleLikePost(post.id)}
+                                        className={`transition-transform active:scale-125 ${post.isLiked ? 'text-red-500' : 'text-slate-800 hover:text-slate-600'}`}
+                                    >
+                                        <Heart size={24} fill={post.isLiked ? "currentColor" : "none"} />
+                                    </button>
+                                    <button className="text-slate-800 hover:text-slate-600">
+                                        <MessageCircle size={24} />
+                                    </button>
+                                </div>
+                                
+                                <p className="text-sm font-bold text-slate-800 mb-1">{post.likes} curtidas</p>
+                                
+                                <div className="text-sm text-slate-700 mb-2">
+                                    <span className="font-bold mr-2">{post.authorName}</span>
+                                    {post.content}
+                                </div>
+
+                                {/* Comments */}
+                                {post.comments.length > 0 && (
+                                    <div className="mb-2 space-y-1">
+                                        {post.comments.map(c => (
+                                            <p key={c.id} className="text-xs text-slate-600">
+                                                <span className="font-bold text-slate-800 mr-1">{c.author}</span>
+                                                {c.text}
+                                            </p>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Add Comment Input */}
+                                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Adicione um comentário..."
+                                        value={commentInputs[post.id] || ""}
+                                        onChange={(e) => setCommentInputs(prev => ({...prev, [post.id]: e.target.value}))}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleCommentPost(post.id)}
+                                        className="flex-1 text-xs outline-none bg-transparent"
+                                    />
+                                    <button 
+                                        onClick={() => handleCommentPost(post.id)}
+                                        className="text-blue-500 text-xs font-bold disabled:opacity-50"
+                                        disabled={!commentInputs[post.id]}
+                                    >
+                                        Publicar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    <div className="h-20"></div>
+                 </div>
             </div>
         )}
 
@@ -1687,7 +2081,7 @@ export default function App() {
       </main>
       
       {/* Hide MobileNav in career mode */}
-      {view !== 'career-mode' && (
+      {!isCareerView && (
           <MobileNav 
             currentView={view} 
             onChangeView={setView} 

@@ -62,7 +62,37 @@ export interface MatchResult {
   draw: boolean;
 }
 
-export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'career-mode' | 'standings' | 'trophies' | 'settings';
+export interface SocialComment {
+  id: string;
+  author: string;
+  text: string;
+}
+
+export interface SocialPost {
+  id: string;
+  authorName: string;
+  teamName?: string;
+  content: string; // The caption
+  imageType: 'training' | 'match' | 'leisure' | 'celebration'; // Determines the "fake photo" look
+  likes: number;
+  comments: SocialComment[];
+  timeAgo: string;
+  isLiked?: boolean;
+}
+
+export interface CareerData {
+  playerName: string;
+  position: Position;
+  teamName: string;
+  teamColor: string; // Tailwind class
+  matchesPlayed: number;
+  goals: number;
+  assists: number;
+  rating: number;
+  history: string[]; // Log of match results
+}
+
+export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'standings' | 'trophies' | 'settings' | 'social' | 'career-intro' | 'career-hub';
 
 export const BRAZILIAN_TEAMS: Team[] = [
   { id: 'fla', name: 'Flamengo', primaryColor: 'bg-red-600', secondaryColor: 'text-black' },

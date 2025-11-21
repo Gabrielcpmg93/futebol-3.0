@@ -1,5 +1,5 @@
 
-import { Player, Position, MatchResult, Team } from '../types';
+import { Player, Position, MatchResult, Team, SocialPost } from '../types';
 
 // --- MOCK DATA GENERATORS (OFFLINE LOGIC) ---
 
@@ -20,6 +20,19 @@ const FICTIONAL_TEAMS = [
   "Norte United", "Estrela do Sul", "Tigres Dourados", "Fênix FC", "Acadêmica Central",
   "Brazuca Juniors", "Nova Era FC", "Leões da Serra", "Guardiões da Bola", "Trovão Azul",
   "Inter do Bairro", "Cometa FC", "Gigantes da Norte", "Samba FC", "Imperial United"
+];
+
+const SOCIAL_CAPTIONS = [
+    "Focado no próximo desafio! 💪⚽ #Treino #Futebol",
+    "Grande vitória hoje! Orgulho desse time. 🔥",
+    "Recuperando energias... 🎮🍕",
+    "Dia de jogo! Que Deus nos abençoe. 🙏",
+    "Nada como o apoio da torcida. Vocês são incríveis!",
+    "Trabalho duro vence talento. Seguimos! 🚀",
+    "Resenha boa com a rapaziada hoje no CT.",
+    "Domingo de folga com a família.",
+    "A temporada está só começando. Vamos por mais! 🏆",
+    "Obrigado pelo carinho de todos nas mensagens."
 ];
 
 // Helper: Gera um delay para simular processamento e não ser instantâneo demais na UI
@@ -114,6 +127,26 @@ export const generateTransferMarket = async (): Promise<Player[]> => {
   }
 
   return players;
+};
+
+export const generateSocialFeed = (): SocialPost[] => {
+    const posts: SocialPost[] = [];
+    const types: ('training' | 'match' | 'leisure' | 'celebration')[] = ['training', 'match', 'leisure', 'celebration'];
+    
+    for (let i = 0; i < 5; i++) {
+        posts.push({
+            id: generateId(),
+            authorName: generateName(),
+            teamName: Math.random() > 0.5 ? generateFictionalTeamName() : undefined,
+            content: SOCIAL_CAPTIONS[Math.floor(Math.random() * SOCIAL_CAPTIONS.length)],
+            imageType: types[Math.floor(Math.random() * types.length)],
+            likes: getRandomNumber(50, 2000),
+            comments: [],
+            timeAgo: `${getRandomNumber(1, 23)}h`,
+            isLiked: false
+        });
+    }
+    return posts;
 };
 
 export const simulateMatchWithGemini = async (myTeam: Team, mySquad: Player[], opponent: Team): Promise<MatchResult> => {
