@@ -80,6 +80,12 @@ export interface SocialPost {
   isLiked?: boolean;
 }
 
+export interface CareerTrophy {
+  name: string;
+  season: number;
+  description: string;
+}
+
 export interface CareerData {
   playerName: string;
   position: Position;
@@ -93,7 +99,7 @@ export interface CareerData {
   cash: number; // Money in R$
   inventory: string[]; // Items bought
   season: number;
-  trophies: string[]; // List of earned trophies in career
+  trophies: CareerTrophy[]; // List of earned trophies in career
 }
 
 export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'standings' | 'trophies' | 'settings' | 'social' | 'career-intro' | 'career-hub';

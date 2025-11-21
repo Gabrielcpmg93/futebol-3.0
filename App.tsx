@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData } from './types';
-import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateScoutReport, generateFictionalTeamName, getFictionalLeagueNames, generateSocialFeed } from './services/geminiService';
+import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateFictionalTeamName, getFictionalLeagueNames, generateSocialFeed } from './services/geminiService';
 import { Card } from './components/Card';
 import { PlayerRow } from './components/PlayerRow';
 import { 
@@ -13,7 +13,6 @@ import {
     Activity,
     Trophy,
     Star,
-    UserPlus,
     ListOrdered,
     Settings,
     Award,
@@ -28,12 +27,10 @@ import {
     Shield,
     Sword,
     MoveRight,
-    Target,
     Timer,
     Smartphone,
     Heart,
     MessageCircle,
-    Send,
     Camera,
     Dumbbell,
     Coffee,
@@ -45,7 +42,9 @@ import {
     ShoppingBag,
     Wallet,
     Shirt,
-    Crown
+    Crown,
+    Filter,
+    X
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -326,6 +325,8 @@ export default function App() {
   const [showContract, setShowContract] = useState(false);
   const [showCareerTrophies, setShowCareerTrophies] = useState(false);
   const [careerTransferOffers, setCareerTransferOffers] = useState<Array<{name: string, color: string}>>([]);
+  // New: Trophy Filter State
+  const [trophyFilterSeason, setTrophyFilterSeason] = useState<number | 'all'>('all');
 
   const shopItems = [
       { id: 'phone', name: 'iPhone 15 Pro', price: 5000, icon: <Smartphone size={20} /> },
@@ -495,24 +496,41 @@ export default function App() {
           
           // Trophy Logic: 80 Matches
           if (newMatchesPlayed === 80) {
-              if (!newTrophies.includes(`Lenda da Temporada (T${prev.season})`)) {
-                  newTrophies.push(`Lenda da Temporada (T${prev.season})`);
+              const trophyName = "Lenda da Temporada";
+              if (!newTrophies.some(t => t.name === trophyName && t.season === prev.season)) {
+                  newTrophies.push({
+                      name: trophyName,
+                      season: prev.season,
+                      description: "Completou 80 jogos na temporada"
+                  });
                   setTimeout(() => alert(`PARABÉNS! Você completou 80 jogos e ganhou o troféu 'Lenda da Temporada'!`), 500);
               }
           }
 
           // Trophy Logic: 60 Goals (Artilheiro)
-          // Check if we just crossed the threshold
           if (prev.goals < 60 && currentGoals >= 60) {
-               newTrophies.push(`Artilheiro de Ouro (T${prev.season})`);
-               setTimeout(() => alert(`INCRÍVEL! 60 Gols! Você recebeu o troféu 'Artilheiro de Ouro'!`), 500);
+               const trophyName = "Artilheiro de Ouro";
+               if (!newTrophies.some(t => t.name === trophyName && t.season === prev.season)) {
+                   newTrophies.push({
+                       name: trophyName,
+                       season: prev.season,
+                       description: "Marcou 60 gols na temporada"
+                   });
+                   setTimeout(() => alert(`INCRÍVEL! 60 Gols! Você recebeu o troféu 'Artilheiro de Ouro'!`), 500);
+               }
           }
 
           // Trophy Logic: 20 Assists (Rei das Assistências)
-          // Check if we just crossed the threshold
           if (prev.assists < 20 && currentAssists >= 20) {
-               newTrophies.push(`Rei das Assistências (T${prev.season})`);
-               setTimeout(() => alert(`QUE VISÃO! 20 Assistências! Você recebeu o troféu 'Rei das Assistências'!`), 500);
+               const trophyName = "Rei das Assistências";
+               if (!newTrophies.some(t => t.name === trophyName && t.season === prev.season)) {
+                   newTrophies.push({
+                       name: trophyName,
+                       season: prev.season,
+                       description: "Deu 20 assistências na temporada"
+                   });
+                   setTimeout(() => alert(`QUE VISÃO! 20 Assistências! Você recebeu o troféu 'Rei das Assistências'!`), 500);
+               }
           }
 
           return {
@@ -613,1819 +631,559 @@ export default function App() {
 
   // Social Feed Handlers
   const handleLikePost = (postId: string) => {
-      setSocialPosts(prev => prev.map(post => {
-          if (post.id === postId) {
-              return {
-                  ...post,
-                  likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-                  isLiked: !post.isLiked
-              };
-          }
-          return post;
-      }));
+      setSocialPosts(prev => prev.map(post => 
+          post.id === postId ? { ...post, likes: post.isLiked ? post.likes - 1 : post.likes + 1, isLiked: !post.isLiked } : post
+      ));
   };
-
-  const handleCommentPost = (postId: string) => {
-      const text = commentInputs[postId];
-      if (!text || text.trim() === "") return;
-
-      setSocialPosts(prev => prev.map(post => {
-          if (post.id === postId) {
-              return {
-                  ...post,
-                  comments: [...post.comments, { id: Math.random().toString(), author: "Você", text }]
-              };
-          }
-          return post;
-      }));
-      
-      setCommentInputs(prev => ({...prev, [postId]: ""}));
-  };
-
-  const togglePostImage = (postId: string) => {
-      setExpandedPostIds(prev => {
-          const newSet = new Set(prev);
-          if (newSet.has(postId)) {
-              newSet.delete(postId);
-          } else {
-              newSet.add(postId);
-          }
-          return newSet;
-      });
-  };
-
-  // --- Buying / Negotiation Logic ---
   
-  const handleOpenNegotiation = (player: Player) => {
-      setNegotiationPlayer(player);
-      // Suggest reasonable defaults based on player value
-      const suggestedSalary = player.salary || Math.floor(player.value * 10 + 20);
-      setNegotiationOffer({ salary: suggestedSalary, weeks: 52 });
-  };
+  // --- Render ---
 
-  const handleConfirmPurchase = () => {
-      if (!negotiationPlayer) return;
-      
-      // Simple validation: Must pay transfer fee
-      if (budget < negotiationPlayer.value) {
-          alert("Orçamento insuficiente para pagar a taxa de transferência!");
-          return;
-      }
-
-      setBudget(prev => prev - negotiationPlayer.value);
-      setMarket(prev => prev.filter(p => p.id !== negotiationPlayer.id));
-      setSquad(prev => [...prev, { 
-          ...negotiationPlayer, 
-          team: userTeam?.name, 
-          contractWeeks: negotiationOffer.weeks,
-          salary: negotiationOffer.salary,
-          isLoaned: false
-      }]);
-
-      setNegotiationPlayer(null);
-      alert(`Contratado! ${negotiationPlayer.name} se juntou ao time.`);
-  };
-
-  const handleLoanIn = (player: Player) => {
-      // Loan fee is usually smaller, say 10% of value
-      const loanFee = player.value * 0.1;
-      
-      if (budget < loanFee) {
-          alert(`Orçamento insuficiente! Taxa de empréstimo: $${loanFee.toFixed(1)}M`);
-          return;
-      }
-
-      if (window.confirm(`Contratar ${player.name} por empréstimo de 12 semanas? Custo: $${loanFee.toFixed(1)}M`)) {
-        setBudget(prev => prev - loanFee);
-        setMarket(prev => prev.filter(p => p.id !== player.id));
-        setSquad(prev => [...prev, { 
-            ...player, 
-            team: userTeam?.name, 
-            contractWeeks: 12, // Fixed 12 weeks
-            salary: player.salary || 50,
-            isLoaned: true
-        }]);
-        alert(`${player.name} contratado por empréstimo! (12 semanas)`);
-      }
-  };
-
-  // --- Squad Management Handlers ---
-
-  const handleInitiateSell = (player: Player) => {
-      setSellingPlayer(player);
-      // Offers from fictional teams in the current league context would be better, 
-      // but for now random fictional names from service is fine.
-      const potentialNames = getFictionalLeagueNames(3);
-      
-      const newOffers = potentialNames.map(name => {
-          const variation = (Math.random() * 0.35) - 0.15;
-          return {
-              team: name,
-              value: player.value * (1 + variation)
-          };
-      });
-      setOffers(newOffers);
-  };
-
-  const handleConfirmSell = (offer: {team: string, value: number}) => {
-      if (!sellingPlayer) return;
-      setBudget(prev => prev + offer.value);
-      setSquad(prev => prev.filter(p => p.id !== sellingPlayer.id));
-      setMarket(prev => [...prev, sellingPlayer]); 
-      setSellingPlayer(null);
-      setOffers([]);
-      alert(`Negócio fechado! ${sellingPlayer.name} vendido para ${offer.team} por $${offer.value.toFixed(1)}M.`);
-  };
-
-  const handleInitiateLoan = (player: Player) => {
-      setLoaningPlayer(player);
-      const offers = [
-          { team: generateFictionalTeamName(), value: player.value * 0.15 },
-          { team: generateFictionalTeamName(), value: player.value * 0.12 }
-      ];
-      if (offers[0].team === offers[1].team) {
-          offers[1].team = generateFictionalTeamName();
-      }
-      setLoanOffers(offers);
-  };
-
-  const handleConfirmLoan = (offer: {team: string, value: number}) => {
-      if (!loaningPlayer) return;
-      setBudget(prev => prev + offer.value);
-      setSquad(prev => prev.filter(p => p.id !== loaningPlayer.id));
-      setLoaningPlayer(null);
-      setLoanOffers([]);
-      alert(`${loaningPlayer.name} foi emprestado ao ${offer.team} com sucesso! (+ $${offer.value.toFixed(1)}M)`);
-  };
-
-  const handleRenew = (player: Player) => {
-      const cost = player.value * 0.1;
-      if (budget < cost) {
-          alert(`Fundos insuficientes! Custo da renovação: $${cost.toFixed(1)}M`);
-          return;
-      }
-      
-      if (window.confirm(`Renovar com ${player.name} por $${cost.toFixed(1)}M? (+50 semanas)`)) {
-          setBudget(prev => prev - cost);
-          setSquad(prev => prev.map(p => p.id === player.id ? { ...p, contractWeeks: p.contractWeeks + 50 } : p));
-          alert(`Contrato de ${player.name} renovado com sucesso! Novo vínculo: ${player.contractWeeks + 50} semanas.`);
-      }
-  };
-
-  // --- Match Logic ---
-
-  const initializeMatchPositions = () => {
-      // 4-4-2 Formation (percentages)
-      // GK, Defs, Mids, Atts
-      // Home attacks Left to Right (X: 0 -> 100)
-      const homeBase = [
-          {x: 5, y: 50}, // GK
-          {x: 20, y: 20}, {x: 20, y: 40}, {x: 20, y: 60}, {x: 20, y: 80}, // DEF
-          {x: 45, y: 20}, {x: 45, y: 40}, {x: 45, y: 60}, {x: 45, y: 80}, // MID
-          {x: 65, y: 40}, {x: 65, y: 60}  // ATT
-      ];
-
-      // Mirror for away team
-      const awayBase = homeBase.map(p => ({ x: 100 - p.x, y: p.y }));
-
-      setHomePlayerPos(homeBase);
-      setAwayPlayerPos(awayBase);
-  };
-
-  const prepareMatch = async (visual: boolean) => {
-      if (!userTeam) return;
-
-      // Pick random opponent FROM LEAGUE TABLE (not user team)
-      const potentialOpponents = leagueTable.filter(t => t.id !== userTeam.id);
-      if (potentialOpponents.length === 0) return;
-      
-      const opponentStats = potentialOpponents[Math.floor(Math.random() * potentialOpponents.length)];
-      
-      // Reconstruct Team object for visual match (give fictional teams random colors if needed)
-      const opponent: Team = {
-          id: opponentStats.id,
-          name: opponentStats.name,
-          primaryColor: 'bg-slate-700', // Default for fictional
-          secondaryColor: 'text-white'
-      };
-      
-      // Generate some color variation for fictional teams based on name hash (simple)
-      const colors = ['bg-red-700', 'bg-blue-700', 'bg-green-700', 'bg-yellow-600', 'bg-purple-700', 'bg-orange-600', 'bg-teal-700'];
-      const colorIndex = opponentStats.name.length % colors.length;
-      opponent.primaryColor = colors[colorIndex];
-
-
-      // ** CRITICAL FIX FOR MOBILE AUDIO **
-      // Unlock audio immediately on user click
-      if (visual) {
-          setPreparingVisualMatch(true); // Prevent useEffect from pausing
-          setSoundEnabled(true);
-          setCurrentTactic('balanced'); // Reset tactic
-          setIsHalftime(false);
-          setHasPlayedSecondHalf(false);
-          
-          if (audioRef.current) {
-              audioRef.current.volume = 0.4;
-              // Try to play. This catches the "User Activation" token.
-              audioRef.current.play().catch(e => console.warn("Audio unlock warning:", e));
-          }
-      }
-      
-      setCurrentOpponent(opponent);
-
-      // Pre-calculate Result
-      setIsSimulating(true);
-      const result = await simulateMatchWithGemini(userTeam, squad, opponent);
-      setMatchResult(result);
-      setMatchEvents(result.events);
-      
-      if (visual) {
-          setIsVisualMatch(true);
-          setSimTime(0);
-          setCurrentScore({ home: 0, away: 0 });
-          initializeMatchPositions();
-          setLastEventIndex(-1);
-          setPreparingVisualMatch(false); // Handover to normal visual match logic
-      } else {
-          finishMatch(result, opponent);
-      }
-  };
-
-  // Simulation Loop for Visual Match
-  useEffect(() => {
-      if (!isVisualMatch || !matchResult || simTime > 90) return;
-      if (isHalftime) return; // Pause for halftime
-
-      const timer = setInterval(() => {
-          setSimTime(prev => {
-              // Check for Halftime
-              if (prev === 45 && !hasPlayedSecondHalf) {
-                  setIsHalftime(true);
-                  return 45;
-              }
-
-              const nextTime = prev + 1;
-              if (nextTime > 90) {
-                  finishMatch(matchResult, currentOpponent!);
-                  return 92; // Stop
-              }
-              return nextTime;
-          });
-
-          // --- DYNAMIC TACTIC EVENT GENERATION ---
-          // Chance to score randomly based on Tactic (Overriding pre-determined events)
-          // Offensive: High chance score, High chance concede
-          // Defensive: Low chance both
-          // Counter: Med chance score
-          const rand = Math.random();
-          let homeGoalChance = 0;
-          let awayGoalChance = 0;
-
-          if (currentTactic === 'offensive') {
-              homeGoalChance = 0.02; // 2% per tick
-              awayGoalChance = 0.015; // Riskier
-          } else if (currentTactic === 'defensive') {
-              homeGoalChance = 0.002; // Very hard to score
-              awayGoalChance = 0.002; // Very hard to concede
-          } else if (currentTactic === 'counter') {
-              homeGoalChance = 0.01; // Decent chance
-              awayGoalChance = 0.005; // Good defense
-          } else { // Balanced
-              homeGoalChance = 0.005;
-              awayGoalChance = 0.005;
-          }
-
-          // Only trigger if no event is happening this very second from the pre-scripted list
-          const eventsNow = matchEvents.filter(e => e.minute === simTime);
-          let dynamicEventHappened = false;
-
-          if (eventsNow.length === 0) {
-             if (rand < homeGoalChance) {
-                 setCurrentScore(s => ({ ...s, home: s.home + 1 }));
-                 setBallPosition({ x: 95, y: 50 });
-                 dynamicEventHappened = true;
-             } else if (rand > (1 - awayGoalChance)) {
-                 setCurrentScore(s => ({ ...s, away: s.away + 1 }));
-                 setBallPosition({ x: 5, y: 50 });
-                 dynamicEventHappened = true;
-             }
-          }
-
-          if (!dynamicEventHappened) {
-            if (eventsNow.length > 0) {
-                eventsNow.forEach(e => {
-                    if (e.type === 'goal') {
-                            if (e.team === 'home') {
-                                setCurrentScore(s => ({ ...s, home: s.home + 1 }));
-                                setBallPosition({ x: 95, y: 50 }); // Ball in away net
-                            } else {
-                                setCurrentScore(s => ({ ...s, away: s.away + 1 }));
-                                setBallPosition({ x: 5, y: 50 }); // Ball in home net
-                            }
-                    }
-                });
-            } else {
-                // --- MOVEMENT LOGIC BASED ON TACTIC ---
-                
-                // Base movement modifiers
-                let homeXMod = 0;
-                let awayXMod = 0;
-
-                if (currentTactic === 'offensive') homeXMod = 25; // Push forward
-                if (currentTactic === 'defensive') homeXMod = -20; // Park the bus
-                if (currentTactic === 'counter') homeXMod = -5; // Sit deep initially
-
-                // Random Movement + Tactic Offset
-                setHomePlayerPos(prev => prev.map((p, idx) => {
-                    // Special logic for Counter Attack: Attackers (last 2) stay high
-                    let specificMod = homeXMod;
-                    if (currentTactic === 'counter' && idx >= 9) specificMod = 30; // Attackers cheat forward
-
-                    const targetX = p.x + specificMod; 
-                    
-                    // Move towards target X slowly, plus random noise
-                    const moveX = (Math.random() - 0.5) * 3;
-                    const moveY = (Math.random() - 0.5) * 3;
-                    
-                    // Bounded box 0-100
-                    let newX = Math.max(2, Math.min(98, p.x + moveX));
-                    // Bias towards tactical position
-                    if (newX < targetX) newX += 0.5;
-                    if (newX > targetX) newX -= 0.5;
-
-                    return {
-                        x: newX,
-                        y: Math.max(2, Math.min(98, p.y + moveY))
-                    };
-                }));
-
-                setAwayPlayerPos(prev => prev.map(p => ({
-                    x: Math.max(2, Math.min(98, p.x + (Math.random() - 0.5) * 2)),
-                    y: Math.max(2, Math.min(98, p.y + (Math.random() - 0.5) * 2))
-                })));
-
-                // Move Ball
-                setBallPosition(prev => ({
-                    x: Math.max(5, Math.min(95, prev.x + (Math.random() - 0.5) * 15)),
-                    y: Math.max(5, Math.min(95, prev.y + (Math.random() - 0.5) * 10))
-                }));
-            }
-          }
-
-      }, 150); // Speed of simulation
-
-      return () => clearInterval(timer);
-  }, [isVisualMatch, simTime, matchResult, matchEvents, currentTactic, isHalftime, hasPlayedSecondHalf]);
-
-  const startSecondHalf = () => {
-      setIsHalftime(false);
-      setHasPlayedSecondHalf(true);
-      // Little push to prevent getting stuck at 45 if the interval triggers immediately again (though logic prevents it)
-      setSimTime(46);
-  };
-
-  const finishMatch = (result: MatchResult, opponent: Team) => {
-      setIsVisualMatch(false);
-      setIsSimulating(false);
-      setPreparingVisualMatch(false);
-      setSoundEnabled(false);
-      setIsHalftime(false);
-      setHasPlayedSecondHalf(false);
-      
-      // Use the VISUAL score if it was a visual match, otherwise use calculated
-      // This honors the "tactics changed the result" logic
-      const finalHomeScore = isVisualMatch ? currentScore.home : result.homeScore;
-      const finalAwayScore = isVisualMatch ? currentScore.away : result.awayScore;
-
-      const finalWin = finalHomeScore > finalAwayScore;
-      const finalDraw = finalHomeScore === finalAwayScore;
-
-      // Update the matchResult object to reflect actual visual outcome
-      const finalResult = {
-          ...result,
-          homeScore: finalHomeScore,
-          awayScore: finalAwayScore,
-          win: finalWin,
-          draw: finalDraw,
-          summary: isVisualMatch ? "Resultado influenciado pela estratégia do treinador." : result.summary
-      };
-      setMatchResult(finalResult);
-
-      // UPDATE TABLE LOGIC
-      setLeagueTable(prevTable => {
-          const newTable = [...prevTable];
-          let userPoints = 0;
-
-          // Update User Team Stats
-          const userStats = newTable.find(t => t.id === userTeam?.id);
-          if (userStats) {
-              userStats.played += 1;
-              userStats.gf += finalHomeScore;
-              userStats.ga += finalAwayScore;
-              if (finalWin) {
-                  userStats.points += 3;
-                  userStats.won += 1;
-              } else if (finalDraw) {
-                  userStats.points += 1;
-                  userStats.drawn += 1;
-              } else {
-                  userStats.lost += 1;
-              }
-              userPoints = userStats.points;
-          }
-
-          // CHECK FOR CHAMPION (89 POINTS)
-          if (userPoints >= 89) {
-              const hasTrophy = trophies.some(t => t.competition === 'Brasileirão Série A' && t.year === 2024);
-              if (!hasTrophy) {
-                  const newTrophy: TrophyType = {
-                      id: Math.random().toString(),
-                      name: 'Campeão Brasileiro',
-                      competition: 'Brasileirão Série A',
-                      year: 2024
-                  };
-                  setTrophies(prev => [...prev, newTrophy]);
-                  setTimeout(() => alert("PARABÉNS! VOCÊ É CAMPEÃO BRASILEIRO! O troféu está na sua galeria."), 500);
-              }
-          }
-
-          // Update Opponent Stats
-          const oppStats = newTable.find(t => t.id === opponent.id);
-          if (oppStats) {
-              oppStats.played += 1;
-              oppStats.gf += finalAwayScore;
-              oppStats.ga += finalHomeScore;
-              if (finalAwayScore > finalHomeScore) {
-                  oppStats.points += 3;
-                  oppStats.won += 1;
-              } else if (finalDraw) {
-                  oppStats.points += 1;
-                  oppStats.drawn += 1;
-              } else {
-                  oppStats.lost += 1;
-              }
-          }
-
-          // SIMULATE ROUND FOR OTHER TEAMS
-          const otherTeams = newTable.filter(t => t.id !== userTeam?.id && t.id !== opponent.id);
-          for (let i = 0; i < otherTeams.length; i += 2) {
-              if (i + 1 < otherTeams.length) {
-                  const t1 = otherTeams[i];
-                  const t2 = otherTeams[i+1];
-                  const score1 = Math.floor(Math.random() * 4);
-                  const score2 = Math.floor(Math.random() * 4);
-                  t1.played += 1; t2.played += 1;
-                  t1.gf += score1; t1.ga += score2;
-                  t2.gf += score2; t2.ga += score1;
-                  if (score1 > score2) { t1.points += 3; t1.won += 1; t2.lost += 1; }
-                  else if (score2 > score1) { t2.points += 3; t2.won += 1; t1.lost += 1; }
-                  else { t1.points += 1; t1.drawn += 1; t2.points += 1; t2.drawn += 1; }
-              }
-          }
-
-          return newTable.sort((a, b) => {
-              if (b.points !== a.points) return b.points - a.points;
-              if (b.won !== a.won) return b.won - a.won;
-              const gdA = a.gf - a.ga;
-              const gdB = b.gf - b.ga;
-              return gdB - gdA;
-          });
-      });
-
-      if (finalWin) setBudget(prev => prev + 2.5);
-      if (finalDraw) setBudget(prev => prev + 1.0);
-  };
-
-  const updatePlayerName = (id: string, newName: string) => {
-      setSquad(prev => prev.map(p => p.id === id ? { ...p, name: newName } : p));
-  };
-
-  const updateTeamName = (newName: string) => {
-      if (userTeam) {
-          setUserTeam({ ...userTeam, name: newName });
-          setLeagueTable(prev => prev.map(t => t.id === userTeam.id ? { ...t, name: newName } : t));
-      }
-  };
-
-  // Helper to check if we are in a career specific view that shouldn't show main selection
-  const isCareerView = view === 'career-intro' || view === 'career-hub';
-
-  if (!isCareerView && (view === 'select-team' || !userTeam)) {
+  if (view === 'select-team') {
     return <TeamSelection onSelect={handleTeamSelect} />;
   }
 
-  const avgRating = (squad.reduce((acc, p) => acc + p.rating, 0) / (squad.length || 1)).toFixed(0);
-
-  return (
-    <div className={`flex flex-col lg:flex-row min-h-screen bg-slate-50 relative ${isCareerView ? 'overflow-hidden' : ''}`}>
-      
-      {/* SHOP MODAL */}
-      {showShop && careerData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in backdrop-blur-sm">
-              <div className="bg-slate-900 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-700">
-                  <div className="p-6 border-b border-slate-800">
-                      <div className="flex justify-between items-center">
-                          <h3 className="font-bold text-xl text-white flex items-center gap-2">
-                              <ShoppingBag className="text-emerald-400" /> Loja Virtual
-                          </h3>
-                          <div className="text-emerald-400 font-bold bg-emerald-900/30 px-3 py-1 rounded-full border border-emerald-900">
-                              R$ {careerData.cash}
+  if (view === 'career-intro') {
+      return (
+          <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+              <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
+                  <h1 className="text-3xl font-bold text-white mb-6 text-center">Rumo ao Estrelato</h1>
+                  
+                  {careerOffers.length > 0 ? (
+                      <div className="space-y-4">
+                          <h2 className="text-xl text-emerald-400 font-bold text-center mb-4">Ofertas Recebidas!</h2>
+                          {careerOffers.map((offer, idx) => (
+                              <button 
+                                  key={idx}
+                                  onClick={() => handleAcceptCareerOffer(offer)}
+                                  className={`w-full p-4 rounded-xl flex items-center justify-between transition-all hover:scale-105 ${offer.color} text-white`}
+                              >
+                                  <span className="font-bold text-lg">{offer.name}</span>
+                                  <div className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold">Contrato Inicial</div>
+                              </button>
+                          ))}
+                      </div>
+                  ) : (
+                      <div className="space-y-6">
+                          <div>
+                              <label className="block text-slate-400 mb-2 text-sm font-bold">Nome do Jogador</label>
+                              <input 
+                                  type="text" 
+                                  value={careerTempName}
+                                  onChange={(e) => setCareerTempName(e.target.value)}
+                                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                  placeholder="Seu nome..."
+                              />
                           </div>
+                          <div>
+                              <label className="block text-slate-400 mb-2 text-sm font-bold">Posição</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                  {Object.values(Position).map(pos => (
+                                      <button
+                                          key={pos}
+                                          onClick={() => setCareerTempPos(pos)}
+                                          className={`p-2 rounded-lg text-sm font-medium border transition-colors ${careerTempPos === pos ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'}`}
+                                      >
+                                          {pos}
+                                      </button>
+                                  ))}
+                              </div>
+                          </div>
+
+                          <button 
+                              onClick={handlePlayAmateurMatch}
+                              disabled={loading}
+                              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                              {loading ? 'Jogando...' : 'Jogar Peneira (Partida Amadora)'}
+                              {!loading && <PlayCircle size={20} />}
+                          </button>
+                          <p className="text-xs text-center text-slate-500">Jogue bem para receber propostas de clubes profissionais.</p>
                       </div>
-                  </div>
-                  <div className="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                      <div className="grid grid-cols-1 gap-3">
-                          {shopItems.map(item => {
-                              const owned = careerData.inventory.includes(item.name);
-                              return (
-                                  <button 
-                                      key={item.id}
-                                      onClick={() => !owned && handleBuyItem(item)}
-                                      disabled={owned}
-                                      className={`flex items-center justify-between p-4 rounded-xl border transition-all ${owned ? 'bg-slate-800 border-slate-700 opacity-50' : 'bg-slate-800 border-slate-700 hover:border-emerald-500 hover:bg-slate-750'}`}
-                                  >
-                                      <div className="flex items-center gap-4">
-                                          <div className="p-3 bg-slate-700 rounded-full text-slate-300">
-                                              {item.icon}
-                                          </div>
-                                          <div className="text-left">
-                                              <span className="block font-bold text-white">{item.name}</span>
-                                              <span className="text-xs text-slate-400">{owned ? 'Comprado' : `R$ ${item.price}`}</span>
-                                          </div>
-                                      </div>
-                                      {owned && <CheckCircle size={20} className="text-emerald-500" />}
-                                  </button>
-                              )
-                          })}
-                      </div>
-                  </div>
-                  <div className="p-4 border-t border-slate-800">
-                      <button 
-                          onClick={() => setShowShop(false)}
-                          className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold"
-                      >
-                          Fechar Loja
-                      </button>
-                  </div>
+                  )}
               </div>
           </div>
-      )}
+      );
+  }
 
-      {/* CAREER TROPHIES MODAL */}
-      {showCareerTrophies && careerData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in backdrop-blur-sm">
-              <div className="bg-slate-900 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-700">
-                  <div className="p-6 bg-gradient-to-r from-amber-600/20 to-yellow-600/20 border-b border-slate-700">
-                      <div className="flex justify-between items-center">
-                          <h3 className="font-bold text-xl text-amber-400 flex items-center gap-2">
-                              <Crown className="text-amber-400" /> Galeria de Troféus
-                          </h3>
-                          <button onClick={() => setShowCareerTrophies(false)} className="text-slate-400 hover:text-white">X</button>
+  if (view === 'career-hub' && careerData) {
+      return (
+          <div className="min-h-screen bg-slate-950 text-white pb-20 relative">
+              {/* Header */}
+              <div className={`h-48 ${careerData.teamColor} relative overflow-hidden`}>
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent"></div>
+                  <div className="absolute bottom-0 left-0 p-6 w-full flex justify-between items-end">
+                      <div>
+                          <div className="flex items-center gap-2 mb-1">
+                              <span className="px-2 py-0.5 bg-white/20 rounded text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm">Temporada {careerData.season}</span>
+                              <span className="px-2 py-0.5 bg-white/20 rounded text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm">{careerData.position}</span>
+                          </div>
+                          <h1 className="text-3xl font-bold">{careerData.playerName}</h1>
+                          <p className="text-white/80 font-medium flex items-center gap-1"><Shield size={14} /> {careerData.teamName}</p>
+                      </div>
+                      <div className="text-right">
+                          <div className="text-4xl font-bold text-emerald-400">{careerData.rating}</div>
+                          <div className="text-xs text-slate-400 font-bold uppercase">OVR</div>
                       </div>
                   </div>
-                  
-                  <div className="p-8 flex flex-col items-center justify-center min-h-[300px]">
-                      {careerData.trophies.length === 0 ? (
-                          <div className="text-center opacity-50">
-                              <div className="bg-slate-800 p-4 rounded-full inline-block mb-4">
-                                  <Award size={48} className="text-slate-600" />
-                              </div>
-                              <p className="text-slate-400">Nenhum troféu conquistado ainda.</p>
-                              <p className="text-xs text-slate-600 mt-2">Jogue para desbloquear conquistas.</p>
+              </div>
+
+              {/* Stats Bar */}
+              <div className="grid grid-cols-4 gap-2 p-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10">
+                  <div className="text-center">
+                      <p className="text-slate-500 text-[10px] font-bold uppercase">Jogos</p>
+                      <p className="font-bold text-lg">{careerData.matchesPlayed}</p>
+                  </div>
+                  <div className="text-center">
+                      <p className="text-slate-500 text-[10px] font-bold uppercase">Gols</p>
+                      <p className="font-bold text-lg">{careerData.goals}</p>
+                  </div>
+                  <div className="text-center">
+                      <p className="text-slate-500 text-[10px] font-bold uppercase">Assists</p>
+                      <p className="font-bold text-lg">{careerData.assists}</p>
+                  </div>
+                  <div className="text-center border-l border-slate-800 pl-2">
+                      <p className="text-emerald-500 text-[10px] font-bold uppercase">Caixa</p>
+                      <p className="font-bold text-sm md:text-lg text-emerald-400">R$ {careerData.cash}</p>
+                  </div>
+              </div>
+
+              {/* Main Actions */}
+              <div className="p-4 grid grid-cols-2 gap-4">
+                  <button 
+                      onClick={handlePlayCareerMatch}
+                      disabled={loading || careerData.matchesPlayed >= 80}
+                      className="col-span-2 bg-gradient-to-r from-emerald-600 to-teal-600 p-6 rounded-2xl flex items-center justify-between shadow-lg hover:shadow-emerald-500/20 transition-all active:scale-95 group disabled:opacity-50"
+                  >
+                      <div className="text-left">
+                          <h3 className="text-xl font-bold mb-1">Próxima Partida</h3>
+                          <p className="text-emerald-100 text-sm">Campeonato Nacional</p>
+                      </div>
+                      <div className="bg-white/20 p-3 rounded-full group-hover:scale-110 transition-transform">
+                          <PlayCircle size={32} fill="currentColor" className="text-white" />
+                      </div>
+                  </button>
+
+                  <button onClick={handleTrainPlayer} className="bg-slate-800 p-4 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-slate-700 active:scale-95 transition-all">
+                      <Dumbbell size={24} className="text-blue-400" />
+                      <span className="font-bold text-sm">Treino (+1 OVR)</span>
+                  </button>
+
+                  <button onClick={() => setShowShop(true)} className="bg-slate-800 p-4 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-slate-700 active:scale-95 transition-all">
+                      <ShoppingBag size={24} className="text-purple-400" />
+                      <span className="font-bold text-sm">Loja</span>
+                  </button>
+
+                  <button 
+                    onClick={() => setShowCareerTrophies(true)} 
+                    className="bg-slate-800 border border-amber-500/30 p-4 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-slate-800/80 active:scale-95 transition-all relative overflow-hidden group"
+                  >
+                      <div className="absolute inset-0 bg-amber-500/10 opacity-0 group-hover:opacity-100 transition-opacity"/>
+                      <div className="p-3 bg-slate-900 rounded-full border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)] group-hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all">
+                          <Trophy size={24} className="text-amber-400" />
+                      </div>
+                      <span className="font-bold text-slate-200 z-10">Sala de Troféus</span>
+                  </button>
+
+                  <button onClick={handleOpenContract} disabled={careerData.matchesPlayed < 80} className="bg-slate-800 p-4 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-slate-700 active:scale-95 transition-all disabled:opacity-30">
+                      <Briefcase size={24} className="text-slate-400" />
+                      <span className="font-bold text-sm">Contrato</span>
+                  </button>
+              </div>
+
+              {/* Recent History */}
+              <div className="px-4 mt-4">
+                  <h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Histórico Recente</h3>
+                  <div className="space-y-2">
+                      {careerData.history.slice(0, 5).map((event, i) => (
+                          <div key={i} className="bg-slate-900 p-3 rounded-lg text-sm text-slate-300 border border-slate-800">
+                              {event}
                           </div>
-                      ) : (
-                          <div className="grid grid-cols-1 gap-6 w-full max-h-[60vh] overflow-y-auto custom-scrollbar">
-                              {careerData.trophies.map((trophy, idx) => (
-                                  <div key={idx} className="bg-gradient-to-b from-slate-800 to-slate-900 p-6 rounded-2xl border border-amber-500/30 flex flex-col items-center text-center relative overflow-hidden group hover:scale-105 transition-transform shrink-0">
-                                      {/* Shine Effect */}
-                                      <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 group-hover:animate-[shimmer_1s_infinite]"></div>
-                                      
-                                      {/* 2D TROPHY ART */}
-                                      <div className="mb-4 relative">
-                                          <div className="absolute inset-0 bg-amber-400 blur-2xl opacity-20 rounded-full"></div>
-                                          <div className="relative z-10 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]">
-                                              <Trophy size={80} className="text-amber-300 fill-amber-500/20" strokeWidth={1.5} />
-                                              <Star size={24} className="text-yellow-100 absolute -top-2 -right-2 animate-pulse fill-white" />
-                                              <Star size={16} className="text-yellow-100 absolute top-10 -left-4 animate-pulse delay-300 fill-white" />
-                                          </div>
-                                      </div>
-                                      
-                                      <h4 className="text-xl font-bold text-amber-100 mb-1">{trophy}</h4>
-                                      <p className="text-xs text-amber-500/80 uppercase tracking-widest">Conquista Lendária</p>
-                                  </div>
-                              ))}
-                          </div>
+                      ))}
+                      {careerData.history.length === 0 && (
+                          <p className="text-slate-600 text-sm italic text-center py-4">Nenhuma partida jogada ainda.</p>
                       )}
                   </div>
-                  
-                  <div className="p-4 border-t border-slate-800 text-center">
-                      <p className="text-xs text-slate-500">Continue jogando para desbloquear mais conquistas.</p>
-                  </div>
               </div>
-          </div>
-      )}
 
-      {/* CONTRACT MODAL */}
-      {showContract && careerData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in backdrop-blur-sm">
-              <div className="bg-slate-900 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-700">
-                  <div className="p-6 bg-gradient-to-r from-blue-900 to-slate-900">
-                      <h3 className="font-bold text-2xl text-white mb-1">Fim de Contrato!</h3>
-                      <p className="text-blue-200 text-sm">80 Jogos concluídos. Hora de decidir seu futuro.</p>
-                  </div>
-                  
-                  <div className="p-6 space-y-4">
-                      <button 
-                          onClick={() => handleContractDecision(true)}
-                          className="w-full p-4 rounded-xl border border-emerald-500/50 bg-emerald-900/20 hover:bg-emerald-900/40 transition-all flex items-center justify-between group"
-                      >
-                          <div className="text-left">
-                              <span className="block font-bold text-white text-lg">Renovar Contrato</span>
-                              <span className="text-xs text-emerald-400">Permanecer no {careerData.teamName}</span>
+              {/* MODALS */}
+              
+              {/* Shop Modal */}
+              {showShop && (
+                  <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+                      <div className="bg-slate-900 w-full max-w-lg rounded-2xl border border-slate-700 p-6 shadow-2xl">
+                          <div className="flex justify-between items-center mb-6">
+                              <h2 className="text-xl font-bold flex items-center gap-2"><ShoppingBag className="text-purple-400"/> Loja de Luxo</h2>
+                              <button onClick={() => setShowShop(false)} className="p-1 bg-slate-800 rounded-full"><X size={20}/></button>
                           </div>
-                          <CheckCircle className="text-emerald-500 group-hover:scale-110 transition-transform" />
-                      </button>
-                      
-                      <div className="relative flex py-2 items-center">
-                          <div className="flex-grow border-t border-slate-700"></div>
-                          <span className="flex-shrink-0 mx-4 text-slate-500 text-xs">OU TRANSFERIR PARA</span>
-                          <div className="flex-grow border-t border-slate-700"></div>
-                      </div>
-
-                      {careerTransferOffers.map((offer, idx) => (
-                           <button 
-                              key={idx}
-                              onClick={() => handleContractDecision(false, offer)}
-                              className="w-full p-4 rounded-xl border border-slate-700 bg-slate-800 hover:border-blue-500 transition-all flex items-center justify-between group"
-                          >
-                              <div className="flex items-center gap-3">
-                                  <div className={`w-10 h-10 rounded-full ${offer.color} flex items-center justify-center text-white font-bold shadow-sm`}>
-                                      {offer.name.substring(0, 2)}
-                                  </div>
-                                  <div className="text-left">
-                                      <span className="block font-bold text-white">{offer.name}</span>
-                                      <span className="text-xs text-slate-400">Novo Desafio</span>
-                                  </div>
-                              </div>
-                              <Briefcase className="text-slate-500 group-hover:text-blue-400 transition-colors" />
-                          </button>
-                      ))}
-                  </div>
-                  
-                  <div className="p-4 border-t border-slate-800 text-center">
-                      <button 
-                          onClick={() => setShowContract(false)}
-                          className="text-slate-500 hover:text-white text-sm"
-                      >
-                          Pensar mais um pouco (Cancelar)
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* SELL MODAL */}
-      {sellingPlayer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
-              <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
-                  <div className="bg-emerald-600 p-4 text-white">
-                      <h3 className="font-bold text-lg">Propostas por {sellingPlayer.name}</h3>
-                      <p className="text-emerald-100 text-sm">Valor de Mercado: ${sellingPlayer.value.toFixed(1)}M</p>
-                  </div>
-                  <div className="p-6 space-y-4">
-                      <p className="text-slate-600 text-sm mb-2">Selecione a melhor oferta para fechar negócio:</p>
-                      {offers.map((offer, idx) => (
-                          <button 
-                              key={idx}
-                              onClick={() => handleConfirmSell(offer)}
-                              className="w-full flex justify-between items-center p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all group"
-                          >
-                              <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-600 text-xs">
-                                      {offer.team.substring(0, 3).toUpperCase()}
-                                  </div>
-                                  <span className="font-bold text-slate-800">{offer.team}</span>
-                              </div>
-                              <span className="font-bold text-emerald-600 group-hover:scale-110 transition-transform">
-                                  $ {offer.value.toFixed(1)}M
-                              </span>
-                          </button>
-                      ))}
-                  </div>
-                  <div className="bg-slate-50 p-4 border-t border-slate-100 text-center">
-                      <button 
-                          onClick={() => { setSellingPlayer(null); setOffers([]); }}
-                          className="text-slate-500 hover:text-slate-700 font-medium text-sm"
-                      >
-                          Cancelar Negociação
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* LOAN MODAL */}
-      {loaningPlayer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
-              <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
-                  <div className="bg-blue-600 p-4 text-white">
-                      <h3 className="font-bold text-lg">Empréstimo: {loaningPlayer.name}</h3>
-                      <p className="text-blue-100 text-sm">Escolha o destino do jogador</p>
-                  </div>
-                  <div className="p-6 space-y-4">
-                      <p className="text-slate-600 text-sm mb-2">Clubes interessados:</p>
-                      {loanOffers.map((offer, idx) => (
-                          <button 
-                              key={idx}
-                              onClick={() => handleConfirmLoan(offer)}
-                              className="w-full flex justify-between items-center p-4 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all group"
-                          >
-                              <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-600 text-xs">
-                                      {offer.team.substring(0, 2).toUpperCase()}
-                                  </div>
-                                  <div className="text-left">
-                                      <span className="block font-bold text-slate-800">{offer.team}</span>
-                                      <span className="text-[10px] text-slate-500">Liga Secundária</span>
-                                  </div>
-                              </div>
-                              <div className="text-right">
-                                  <span className="block text-[10px] text-slate-500 uppercase">Taxa</span>
-                                  <span className="font-bold text-blue-600 group-hover:scale-110 transition-transform">
-                                      $ {offer.value.toFixed(1)}M
-                                  </span>
-                              </div>
-                          </button>
-                      ))}
-                  </div>
-                  <div className="bg-slate-50 p-4 border-t border-slate-100 text-center">
-                      <button 
-                          onClick={() => { setLoaningPlayer(null); setLoanOffers([]); }}
-                          className="text-slate-500 hover:text-slate-700 font-medium text-sm"
-                      >
-                          Cancelar Empréstimo
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* BUY NEGOTIATION MODAL */}
-      {negotiationPlayer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
-              <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
-                  <div className="bg-emerald-700 p-4 text-white flex justify-between items-center">
-                      <div>
-                          <h3 className="font-bold text-lg">Negociar Contrato</h3>
-                          <p className="text-emerald-100 text-xs uppercase tracking-wide">{negotiationPlayer.name}</p>
-                      </div>
-                      <Handshake size={28} className="text-emerald-200" />
-                  </div>
-                  
-                  <div className="p-6 space-y-6">
-                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                           <span className="text-sm text-slate-500 font-medium">Taxa de Transferência</span>
-                           <span className="text-lg font-bold text-emerald-600">$ {negotiationPlayer.value.toFixed(1)}M</span>
-                      </div>
-
-                      <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-2">
-                              Salário Semanal ($ mil)
-                          </label>
-                          <div className="flex items-center gap-4">
-                              <input 
-                                  type="range" 
-                                  min="10" 
-                                  max="500" 
-                                  step="5"
-                                  value={negotiationOffer.salary}
-                                  onChange={(e) => setNegotiationOffer(prev => ({...prev, salary: parseInt(e.target.value)}))}
-                                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                              />
-                              <div className="bg-white border border-slate-300 w-24 text-center py-2 rounded-lg font-bold text-slate-800">
-                                  ${negotiationOffer.salary}k
-                              </div>
+                          <div className="grid grid-cols-2 gap-3">
+                              {shopItems.map(item => (
+                                  <button 
+                                      key={item.id}
+                                      onClick={() => handleBuyItem(item)}
+                                      disabled={careerData.inventory.includes(item.name)}
+                                      className={`p-3 rounded-xl border flex flex-col items-center text-center gap-2 transition-all ${careerData.inventory.includes(item.name) ? 'bg-slate-800 border-slate-700 opacity-50' : 'bg-slate-800 border-slate-600 hover:border-purple-500 hover:bg-slate-700'}`}
+                                  >
+                                      <div className="text-purple-400">{item.icon}</div>
+                                      <span className="text-sm font-bold">{item.name}</span>
+                                      <span className="text-xs text-emerald-400">R$ {item.price}</span>
+                                  </button>
+                              ))}
                           </div>
                       </div>
+                  </div>
+              )}
 
-                      <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-2">
-                              Duração do Contrato (Semanas)
-                          </label>
-                          <div className="flex items-center gap-4">
-                              <input 
-                                  type="range" 
-                                  min="10" 
-                                  max="156" 
-                                  step="2"
-                                  value={negotiationOffer.weeks}
-                                  onChange={(e) => setNegotiationOffer(prev => ({...prev, weeks: parseInt(e.target.value)}))}
-                                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                              />
-                              <div className="bg-white border border-slate-300 w-24 text-center py-2 rounded-lg font-bold text-slate-800">
-                                  {negotiationOffer.weeks}
+              {/* Contract Modal */}
+              {showContract && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+                      <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-700 p-6 shadow-2xl">
+                          <h2 className="text-2xl font-bold mb-2 text-center">Fim de Temporada!</h2>
+                          <p className="text-slate-400 text-center text-sm mb-6">Escolha seu destino para a próxima temporada.</p>
+                          
+                          <div className="space-y-3">
+                              <button onClick={() => handleContractDecision(true)} className={`w-full p-4 rounded-xl border-2 border-emerald-600 bg-emerald-500/10 flex items-center justify-between hover:bg-emerald-500/20 transition-all`}>
+                                  <span className="font-bold">Renovar com {careerData.teamName}</span>
+                                  <CheckCircle className="text-emerald-500"/>
+                              </button>
+                              <div className="relative flex py-2 items-center">
+                                  <div className="flex-grow border-t border-slate-700"></div>
+                                  <span className="flex-shrink-0 mx-4 text-slate-600 text-xs uppercase font-bold">Ou Transferir-se</span>
+                                  <div className="flex-grow border-t border-slate-700"></div>
                               </div>
+                              {careerTransferOffers.map((offer, i) => (
+                                  <button key={i} onClick={() => handleContractDecision(false, offer)} className={`w-full p-4 rounded-xl border border-slate-700 bg-slate-800 flex items-center justify-between hover:border-white hover:bg-slate-700 transition-all`}>
+                                      <div className="flex items-center gap-3">
+                                          <div className={`w-8 h-8 rounded-full ${offer.color}`}></div>
+                                          <span className="font-bold">{offer.name}</span>
+                                      </div>
+                                      <MoveRight size={16} className="text-slate-500"/>
+                                  </button>
+                              ))}
                           </div>
+                          <button onClick={() => setShowContract(false)} className="mt-4 w-full py-3 text-slate-500 text-sm hover:text-white">Decidir Depois</button>
                       </div>
-                      
-                      <div className="pt-2">
-                           <button 
-                              onClick={handleConfirmPurchase}
-                              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md"
-                           >
-                               <CheckCircle size={20} />
-                               Assinar Contrato
+                  </div>
+              )}
+
+               {/* Trophy Modal */}
+              {showCareerTrophies && careerData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+                    <div className="bg-slate-900 w-full max-w-4xl rounded-2xl border border-amber-500/30 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                       {/* Header */}
+                       <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800">
+                           <div className="flex items-center gap-3">
+                               <Trophy className="text-amber-400" size={28} />
+                               <div>
+                                   <h2 className="text-2xl font-bold text-white">Sala de Troféus</h2>
+                                   <p className="text-slate-400 text-sm">Suas conquistas lendárias</p>
+                               </div>
+                           </div>
+                           <button onClick={() => setShowCareerTrophies(false)} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white">
+                               <X size={24} />
                            </button>
-                      </div>
-                  </div>
+                       </div>
 
-                  <div className="bg-slate-50 p-4 border-t border-slate-100 text-center">
-                      <button 
-                          onClick={() => setNegotiationPlayer(null)}
-                          className="text-slate-500 hover:text-slate-700 font-medium text-sm"
-                      >
-                          Cancelar
-                      </button>
-                  </div>
+                       {/* Filters */}
+                       <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50 flex gap-2 overflow-x-auto no-scrollbar">
+                           <button
+                               onClick={() => setTrophyFilterSeason('all')}
+                               className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all whitespace-nowrap ${trophyFilterSeason === 'all' ? 'bg-amber-500 text-black' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                           >
+                               Todas
+                           </button>
+                           {Array.from(new Set(careerData.trophies.map(t => t.season))).sort((a: number, b: number) => a - b).map(s => (
+                               <button
+                                   key={s}
+                                   onClick={() => setTrophyFilterSeason(s)}
+                                   className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all whitespace-nowrap ${trophyFilterSeason === s ? 'bg-amber-500 text-black' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                               >
+                                   Temporada {s}
+                               </button>
+                           ))}
+                       </div>
+
+                       {/* Grid */}
+                       <div className="p-6 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                           {careerData.trophies.filter(t => trophyFilterSeason === 'all' || t.season === trophyFilterSeason).length === 0 ? (
+                               <div className="col-span-full py-12 text-center text-slate-500">
+                                   <Trophy size={48} className="mx-auto mb-4 opacity-20" />
+                                   <p>Nenhum troféu encontrado nesta categoria.</p>
+                               </div>
+                           ) : (
+                               careerData.trophies
+                                   .filter(t => trophyFilterSeason === 'all' || t.season === trophyFilterSeason)
+                                   .map((trophy, idx) => (
+                                       <div key={idx} className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 p-4 rounded-xl flex flex-col items-center text-center group hover:border-amber-500/50 transition-colors relative overflow-hidden">
+                                           <div className="absolute inset-0 bg-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                           <div className="w-16 h-16 mb-3 rounded-full bg-slate-900 border-2 border-amber-500 flex items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+                                               <Trophy size={32} className="text-amber-400 drop-shadow-md" />
+                                           </div>
+                                           <h3 className="font-bold text-white text-sm mb-1">{trophy.name}</h3>
+                                           <span className="text-[10px] uppercase font-bold tracking-wider text-amber-500 mb-2">Temporada {trophy.season}</span>
+                                           <p className="text-xs text-slate-400 leading-tight">{trophy.description}</p>
+                                       </div>
+                                   ))
+                           )}
+                       </div>
+                    </div>
+                </div>
+              )}
+
+              <div className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 p-4 flex justify-around z-40">
+                  <button onClick={() => setView('select-team')} className="flex flex-col items-center text-slate-500 hover:text-white">
+                      <ArrowLeft size={20} />
+                      <span className="text-[10px] mt-1">Sair</span>
+                  </button>
               </div>
           </div>
-      )}
+      );
+  }
 
-      {!isCareerView && (
-          <Sidebar 
-            currentView={view} 
-            onChangeView={setView} 
-            team={userTeam} 
-          />
-      )}
-      
-      <main className={`flex-1 p-4 pb-24 lg:p-8 overflow-y-auto h-screen scroll-smooth ${isCareerView ? 'bg-slate-900 text-white flex items-center justify-center' : ''}`}>
-        
-        {!isCareerView && view !== 'social' && (
-            <div className="flex flex-row overflow-x-auto md:grid md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8 pb-2 md:pb-0 snap-x snap-mandatory no-scrollbar">
-                <StatsCard 
-                    title="Orçamento" 
-                    value={`$ ${budget.toFixed(1)} M`} 
-                    icon={<DollarSign size={20} className="text-emerald-600" />} 
-                    colorClass="border-emerald-500"
-                    bgClass="bg-emerald-100"
-                />
-                <StatsCard 
-                    title="Jogadores" 
-                    value={squad.length} 
-                    icon={<Users size={20} className="text-blue-600" />} 
-                    colorClass="border-blue-500"
-                    bgClass="bg-blue-100"
-                />
-                <StatsCard 
-                    title="Média OVR" 
-                    value={avgRating} 
-                    icon={<Activity size={20} className="text-purple-600" />} 
-                    colorClass="border-purple-500"
-                    bgClass="bg-purple-100"
-                />
-                 <StatsCard 
-                    title="Semana" 
-                    value={week} 
-                    icon={<Calendar size={20} className="text-amber-600" />} 
-                    colorClass="border-amber-500"
-                    bgClass="bg-amber-100"
-                />
-            </div>
-        )}
+  return (
+      <div className="min-h-screen flex bg-slate-100">
+          <Sidebar currentView={view} onChangeView={setView} team={userTeam} />
+          
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+              <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 lg:pb-6">
+                  {/* ... Main Manager Mode Logic ... */}
+                  <div className="flex items-center justify-between mb-6">
+                       <h1 className="text-2xl font-bold text-slate-900">
+                         {view === 'dashboard' && 'Visão Geral'}
+                         {view === 'squad' && 'Gerenciar Elenco'}
+                         {view === 'match' && 'Dia de Jogo'}
+                         {view === 'market' && 'Mercado da Bola'}
+                         {view === 'standings' && 'Tabela do Campeonato'}
+                       </h1>
+                       <div className="flex items-center gap-4">
+                           <div className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-full shadow-sm border border-slate-200">
+                               <DollarSign size={16} className="text-emerald-600" />
+                               <span className="font-bold text-slate-700 text-sm">${budget.toFixed(1)}M</span>
+                           </div>
+                           <div className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-full shadow-sm border border-slate-200">
+                               <Calendar size={16} className="text-blue-600" />
+                               <span className="font-bold text-slate-700 text-sm">Semana {week}</span>
+                           </div>
+                           <button 
+                               onClick={handleSkipWeek}
+                               className="bg-slate-800 text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-slate-700 transition-colors"
+                           >
+                               Pular Semana
+                           </button>
+                           <button
+                               onClick={handleStartCareer}
+                               className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-1.5 rounded-full text-sm font-bold hover:shadow-lg transition-all animate-pulse"
+                           >
+                               Modo Estrela
+                           </button>
+                       </div>
+                  </div>
 
-        {/* Views Content */}
-        
-        {view === 'dashboard' && userTeam && (
-            <div className="space-y-6 animate-fade-in">
-                
-                {/* Quick Action Buttons */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                     <button 
-                        onClick={handleSkipWeek}
-                        className="bg-white hover:bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
-                    >
-                        <div className="p-3 bg-slate-100 rounded-full text-slate-600 group-hover:bg-slate-200 transition-colors">
-                            <Calendar size={24} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-slate-800 text-sm">Pular Semana</h3>
-                            <p className="text-[10px] text-slate-500">Atualiza contratos</p>
-                        </div>
-                    </button>
+                  {view === 'dashboard' && (
+                      <div className="space-y-6">
+                          {/* Top Stats */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <StatsCard 
+                                  title="Jogos" 
+                                  value={userTeam && leagueTable.find(t => t.id === userTeam.id)?.played || 0} 
+                                  icon={<Activity size={20} className="text-blue-600" />} 
+                                  colorClass="border-l-blue-500" 
+                                  bgClass="bg-blue-100"
+                              />
+                              <StatsCard 
+                                  title="Vitórias" 
+                                  value={userTeam && leagueTable.find(t => t.id === userTeam.id)?.won || 0} 
+                                  icon={<Trophy size={20} className="text-amber-500" />} 
+                                  colorClass="border-l-amber-500" 
+                                  bgClass="bg-amber-100"
+                              />
+                              <StatsCard 
+                                  title="Média OVR" 
+                                  value={Math.round(squad.reduce((acc, p) => acc + p.rating, 0) / (squad.length || 1))} 
+                                  icon={<Star size={20} className="text-emerald-500" />} 
+                                  colorClass="border-l-emerald-500" 
+                                  bgClass="bg-emerald-100"
+                              />
+                              <StatsCard 
+                                  title="Torcida" 
+                                  value="Apaixonada" 
+                                  icon={<Heart size={20} className="text-red-500" />} 
+                                  colorClass="border-l-red-500" 
+                                  bgClass="bg-red-100"
+                              />
+                          </div>
 
-                    <button 
-                        onClick={handleStartCareer}
-                        className="bg-white hover:bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
-                    >
-                         <div className="p-3 bg-amber-100 rounded-full text-amber-600 group-hover:scale-110 transition-transform">
-                            <Medal size={24} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-amber-900 text-sm">Rumo ao Estrelato</h3>
-                            <p className="text-[10px] text-amber-700">Modo Carreira Jogador</p>
-                        </div>
-                    </button>
+                          {/* Dashboard Grid */}
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                              {/* Social Feed */}
+                              <div className="lg:col-span-2 space-y-6">
+                                  <div className="flex items-center justify-between">
+                                      <h2 className="text-lg font-bold text-slate-800">Rede Social</h2>
+                                      <button onClick={() => setSocialPosts(generateSocialFeed())} className="text-sm text-blue-600 hover:underline">Atualizar</button>
+                                  </div>
+                                  
+                                  <div className="space-y-4">
+                                      {socialPosts.map(post => (
+                                          <Card key={post.id} className="p-0 overflow-hidden">
+                                              <div className="p-4 flex items-center gap-3">
+                                                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold">
+                                                      {post.authorName[0]}
+                                                  </div>
+                                                  <div>
+                                                      <p className="font-bold text-slate-800 text-sm">{post.authorName}</p>
+                                                      {post.teamName && <p className="text-xs text-slate-500">{post.teamName}</p>}
+                                                  </div>
+                                                  <span className="ml-auto text-xs text-slate-400">{post.timeAgo}</span>
+                                              </div>
+                                              
+                                              {/* Fake Photo Area */}
+                                              <div className={`w-full bg-slate-200 relative flex items-center justify-center overflow-hidden transition-all duration-300 ${expandedPostIds.has(post.id) ? 'h-96' : 'h-48 cursor-pointer'}`} onClick={() => {
+                                                  const newSet = new Set(expandedPostIds);
+                                                  if (newSet.has(post.id)) newSet.delete(post.id);
+                                                  else newSet.add(post.id);
+                                                  setExpandedPostIds(newSet);
+                                              }}>
+                                                  <img 
+                                                      src={`https://source.unsplash.com/800x600/?soccer,${post.imageType}`} 
+                                                      alt="Post" 
+                                                      className="w-full h-full object-cover"
+                                                      onError={(e) => {e.currentTarget.src = 'https://placehold.co/600x400/e2e8f0/94a3b8?text=Carregando+Imagem'}} 
+                                                  />
+                                                  {!expandedPostIds.has(post.id) && (
+                                                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                                          <span className="text-white font-bold text-sm bg-black/50 px-3 py-1 rounded-full">Ver Foto</span>
+                                                      </div>
+                                                  )}
+                                              </div>
 
-                    <button 
-                        onClick={() => setView('social')}
-                        className="bg-white hover:bg-pink-50 border border-pink-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
-                    >
-                        <div className="p-3 bg-pink-100 rounded-full text-pink-600 group-hover:scale-110 transition-transform">
-                            <Smartphone size={24} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-pink-900 text-sm">Rede Social</h3>
-                            <p className="text-[10px] text-pink-700">BrazucaGram</p>
-                        </div>
-                    </button>
-                    
-                    <button 
-                        onClick={() => setView('trophies')}
-                        className="bg-white hover:bg-purple-50 border border-purple-200 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors shadow-sm group text-center"
-                    >
-                        <div className="p-3 bg-purple-100 rounded-full text-purple-600 group-hover:scale-110 transition-transform">
-                            <Award size={24} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-purple-900 text-sm">Troféus</h3>
-                            <p className="text-[10px] text-purple-700">Ver conquistas</p>
-                        </div>
-                    </button>
-                </div>
+                                              <div className="p-4">
+                                                  <div className="flex gap-4 mb-3">
+                                                      <button 
+                                                          onClick={() => handleLikePost(post.id)}
+                                                          className={`flex items-center gap-1.5 text-sm ${post.isLiked ? 'text-red-500' : 'text-slate-600 hover:text-red-500'}`}
+                                                      >
+                                                          <Heart size={20} fill={post.isLiked ? "currentColor" : "none"} />
+                                                      </button>
+                                                      <button className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-blue-500">
+                                                          <MessageCircle size={20} />
+                                                      </button>
+                                                  </div>
+                                                  <p className="text-sm text-slate-800 mb-2">
+                                                      <span className="font-bold mr-2">{post.authorName}</span>
+                                                      {post.content}
+                                                  </p>
+                                                  <p className="text-xs text-slate-500 font-bold">{post.likes} curtidas</p>
+                                              </div>
+                                          </Card>
+                                      ))}
+                                  </div>
+                              </div>
 
-                <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl p-6 text-white shadow-lg flex items-center justify-between">
-                     <div>
-                         <h2 className="text-2xl font-bold mb-1">Dia de Jogo</h2>
-                         <p className="text-indigo-100 text-sm">Prepare seu time para o próximo desafio.</p>
-                     </div>
-                     <button 
-                        onClick={() => setView('match')}
-                        className="bg-white text-indigo-600 font-bold py-3 px-6 rounded-lg hover:bg-indigo-50 transition-colors flex items-center gap-2 shadow-lg"
-                    >
-                        <PlayCircle size={20} />
-                        Jogar
-                    </button>
-                </div>
+                              {/* Side Widgets */}
+                              <div className="space-y-6">
+                                  <Card title="Próximo Jogo">
+                                      <div className="text-center py-4">
+                                          <div className="flex items-center justify-center gap-4 mb-4">
+                                              <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white ${userTeam?.primaryColor} ${userTeam?.secondaryColor}`}>
+                                                  {userTeam?.name.substring(0, 3).toUpperCase()}
+                                              </div>
+                                              <span className="text-slate-400 font-bold">VS</span>
+                                              <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">
+                                                  ???
+                                              </div>
+                                          </div>
+                                          <button 
+                                              onClick={() => setView('match')}
+                                              className="w-full bg-emerald-600 text-white font-bold py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+                                          >
+                                              Ir para o Jogo
+                                          </button>
+                                      </div>
+                                  </Card>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    
-                    <Card title="Classificação Rápida">
-                        <div className="space-y-2">
-                             {leagueTable.slice(0, 5).map((t, i) => (
-                                 <div key={t.id} className="flex justify-between items-center p-2 bg-slate-50 rounded">
-                                     <div className="flex items-center gap-2">
-                                         <span className="font-bold text-slate-400 w-4">{i + 1}</span>
-                                         <span className={`text-sm font-medium ${t.id === userTeam.id ? 'text-emerald-600 font-bold' : ''}`}>{t.name}</span>
-                                     </div>
-                                     <span className="font-bold text-sm">{t.points} pts</span>
-                                 </div>
-                             ))}
-                             <button onClick={() => setView('standings')} className="w-full text-center text-xs text-blue-600 hover:underline mt-2">Ver tabela completa</button>
-                        </div>
-                    </Card>
-                    
-                    <button 
-                        onClick={() => setView('settings')}
-                        className="bg-white hover:bg-slate-50 border border-slate-200 p-6 rounded-xl flex items-center justify-between transition-colors shadow-sm group"
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="p-4 bg-slate-100 rounded-full text-slate-600 group-hover:scale-110 transition-transform">
-                                <Settings size={24} />
-                            </div>
-                            <div className="text-left">
-                                <h3 className="font-bold text-slate-800">Ajustes do Clube</h3>
-                                <p className="text-xs text-slate-500">Editar nome, cores e elenco</p>
-                            </div>
-                        </div>
-                        <MoveRight size={20} className="text-slate-400 group-hover:text-slate-600" />
-                    </button>
-                </div>
-            </div>
-        )}
+                                  <Card title="Top Jogadores">
+                                      <div className="space-y-3">
+                                          {squad.sort((a,b) => b.rating - a.rating).slice(0, 3).map(p => (
+                                              <div key={p.id} className="flex items-center gap-3">
+                                                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold">
+                                                      {p.rating}
+                                                  </div>
+                                                  <div className="min-w-0">
+                                                      <p className="text-sm font-bold truncate">{p.name}</p>
+                                                      <p className="text-xs text-slate-500">{p.position}</p>
+                                                  </div>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </Card>
+                              </div>
+                          </div>
+                      </div>
+                  )}
 
-        {/* CAREER MODE: INTRO / CREATION / OFFERS */}
-        {view === 'career-intro' && (
-            <div className="w-full max-w-2xl mx-auto bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 animate-fade-in">
-                {!loading && careerOffers.length === 0 && (
-                    <>
-                        <div className="text-center mb-8">
-                            <h2 className="text-3xl font-bold text-white mb-2">Inicie sua Lenda</h2>
-                            <p className="text-slate-400">Crie seu jogador e prove seu valor na peneira.</p>
-                        </div>
-
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">Nome do Atleta</label>
-                                <input 
-                                    type="text" 
-                                    value={careerTempName}
-                                    onChange={(e) => setCareerTempName(e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white focus:border-amber-500 outline-none transition-colors"
-                                    placeholder="Ex: Ronaldinho Jr."
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">Posição Preferida</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {[Position.ATT, Position.MID, Position.DEF, Position.GK].map(pos => (
-                                        <button
-                                            key={pos}
-                                            onClick={() => setCareerTempPos(pos)}
-                                            className={`p-3 rounded-lg border font-medium transition-all ${careerTempPos === pos ? 'bg-amber-500 border-amber-500 text-black' : 'bg-slate-900 border-slate-600 text-slate-400 hover:border-slate-500'}`}
-                                        >
-                                            {pos}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <button 
-                                onClick={handlePlayAmateurMatch}
-                                className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-bold py-4 rounded-xl text-lg shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02]"
-                            >
-                                Jogar Partida da Peneira
-                            </button>
-                             <button 
-                                onClick={() => setView('dashboard')}
-                                className="w-full text-slate-500 hover:text-white py-2 text-sm font-medium"
-                            >
-                                Cancelar e Voltar
-                            </button>
-                        </div>
-                    </>
-                )}
-
-                {loading && (
-                    <div className="text-center py-10">
-                        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-amber-500 mx-auto mb-6"></div>
-                        <h3 className="text-2xl font-bold text-white mb-2">Jogando Partida Amadora...</h3>
-                        <p className="text-slate-400">Os olheiros estão observando seu desempenho.</p>
-                    </div>
-                )}
-
-                {!loading && careerOffers.length > 0 && (
-                    <div className="animate-fade-in">
-                         <div className="text-center mb-8">
-                            <div className="inline-flex items-center justify-center p-3 bg-green-500/20 text-green-400 rounded-full mb-4">
-                                <CheckCircle size={32} />
-                            </div>
-                            <h2 className="text-3xl font-bold text-white mb-2">Aprovado!</h2>
-                            <p className="text-slate-400">Você impressionou. Escolha seu primeiro clube profissional.</p>
-                        </div>
-
-                        <div className="space-y-4">
-                            {careerOffers.map((offer, idx) => (
-                                <button 
-                                    key={idx}
-                                    onClick={() => handleAcceptCareerOffer(offer)}
-                                    className={`w-full bg-white text-slate-900 p-4 rounded-xl flex items-center justify-between group hover:bg-amber-50 transition-colors border-l-8 ${offer.color === 'bg-blue-600' ? 'border-blue-600' : offer.color === 'bg-red-600' ? 'border-red-600' : 'border-amber-500'}`}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-12 h-12 rounded-full ${offer.color} text-white flex items-center justify-center font-bold shadow-md`}>
-                                            {offer.name.substring(0, 2).toUpperCase()}
-                                        </div>
-                                        <div className="text-left">
-                                            <span className="block font-bold text-lg">{offer.name}</span>
-                                            <span className="text-sm text-slate-500">Contrato Profissional</span>
-                                        </div>
-                                    </div>
-                                    <MoveRight className="text-slate-400 group-hover:text-slate-800" />
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
-        )}
-
-        {/* CAREER MODE: HUB (80 Matches) */}
-        {view === 'career-hub' && careerData && (
-            <div className="w-full max-w-4xl mx-auto animate-fade-in space-y-6">
-                
-                <div className="flex items-center justify-between bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg">
-                    <div className="flex items-center gap-4">
-                        <div className={`w-16 h-16 rounded-full ${careerData.teamColor} flex items-center justify-center text-white font-bold text-xl border-2 border-white shadow-lg`}>
-                            {careerData.teamName.substring(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-white">{careerData.playerName}</h2>
-                            <p className="text-slate-400">{careerData.position} • {careerData.teamName}</p>
-                            <p className="text-emerald-400 text-xs font-bold mt-1 flex items-center gap-1">
-                                <Wallet size={12} /> R$ {careerData.cash.toLocaleString()}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <div className="text-3xl font-bold text-amber-400">{careerData.rating}</div>
-                        <div className="text-xs text-slate-500 uppercase font-bold">OVR</div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center">
-                        <TrendingUp className="text-emerald-400 mb-2" size={24} />
-                        <span className="text-2xl font-bold text-white">{careerData.goals}</span>
-                        <span className="text-xs text-slate-500 uppercase">Gols Marcados</span>
-                    </div>
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center">
-                        <Users className="text-blue-400 mb-2" size={24} />
-                        <span className="text-2xl font-bold text-white">{careerData.assists}</span>
-                        <span className="text-xs text-slate-500 uppercase">Assistências</span>
-                    </div>
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center">
-                        <div className="text-amber-500 mb-2 font-bold text-lg">
-                             {careerData.matchesPlayed} / 80
-                        </div>
-                        <span className="text-xs text-slate-500 uppercase">Jogos na Temporada {careerData.season}</span>
-                        <div className="w-full bg-slate-700 h-2 rounded-full mt-2 overflow-hidden">
-                            <div 
-                                className="bg-amber-500 h-full transition-all duration-500" 
-                                style={{ width: `${(careerData.matchesPlayed / 80) * 100}%` }}
-                            ></div>
-                        </div>
-                    </div>
-                </div>
-
-                {careerData.matchesPlayed < 80 ? (
-                    <>
-                        <button 
-                            onClick={handlePlayCareerMatch}
-                            disabled={loading}
-                            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-6 rounded-2xl text-xl shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-3"
-                        >
-                            {loading ? (
-                                <>
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                                    Jogando...
-                                </>
-                            ) : (
-                                <>
-                                    <PlayCircle size={28} />
-                                    Jogar Próxima Partida
-                                </>
-                            )}
-                        </button>
-                        
-                        <button
-                            onClick={() => setShowCareerTrophies(true)}
-                            className="w-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-200 font-bold py-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
-                        >
-                            <Crown size={20} className="text-amber-400" />
-                            Sala de Troféus ({careerData.trophies.length})
-                        </button>
-                        
-                        {/* New Buttons Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                             <button 
-                                onClick={handleOpenContract}
-                                disabled={careerData.matchesPlayed < 80}
-                                className="bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors text-center"
-                            >
-                                <Briefcase className={careerData.matchesPlayed >= 80 ? "text-amber-400" : "text-slate-500"} />
-                                <div>
-                                    <h3 className="font-bold text-white text-sm">Contrato</h3>
-                                    <p className="text-[10px] text-slate-400">
-                                        {careerData.matchesPlayed >= 80 ? "Disponível" : "Bloqueado (80 jogos)"}
-                                    </p>
-                                </div>
-                            </button>
-
-                            <button 
-                                onClick={handleTrainPlayer}
-                                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors text-center"
-                            >
-                                <Dumbbell className="text-blue-400" />
-                                <div>
-                                    <h3 className="font-bold text-white text-sm">Treino</h3>
-                                    <p className="text-[10px] text-slate-400">+1 OVR</p>
-                                </div>
-                            </button>
-
-                            <div className="bg-slate-800 border border-slate-700 p-4 rounded-xl flex flex-col items-center gap-2 text-center">
-                                <Wallet className="text-emerald-400" />
-                                <div>
-                                    <h3 className="font-bold text-white text-sm">Salário</h3>
-                                    <p className="text-[10px] text-emerald-400 font-bold">+R$ 1.500/jogo</p>
-                                </div>
-                            </div>
-
-                            <button 
-                                onClick={() => setShowShop(true)}
-                                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-xl flex flex-col items-center gap-2 transition-colors text-center"
-                            >
-                                <ShoppingBag className="text-pink-400" />
-                                <div>
-                                    <h3 className="font-bold text-white text-sm">Loja</h3>
-                                    <p className="text-[10px] text-slate-400">Gastar salário</p>
-                                </div>
-                            </button>
-                        </div>
-                    </>
-                ) : (
-                     <div className="bg-amber-500 text-black p-8 rounded-2xl text-center animate-pulse">
-                        <h2 className="text-3xl font-bold mb-2">Fim de Temporada!</h2>
-                        <p className="mb-6 font-medium">Seu contrato acabou. Hora de renovar ou buscar novos ares.</p>
-                        <button 
-                            onClick={handleOpenContract}
-                            className="bg-black text-white px-8 py-4 rounded-xl font-bold hover:bg-slate-800 text-lg flex items-center justify-center gap-2 mx-auto"
-                        >
-                            <Briefcase size={20} />
-                            Resolver Futuro
-                        </button>
-                    </div>
-                )}
-
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Histórico Recente</h3>
-                    <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                        {careerData.history.length === 0 ? (
-                            <p className="text-slate-500 text-center py-4">Nenhuma partida jogada ainda.</p>
-                        ) : (
-                            careerData.history.map((log, i) => (
-                                <div key={i} className="p-3 bg-slate-700/50 rounded-lg text-slate-300 text-sm border-l-2 border-slate-600">
-                                    <span className="font-bold text-slate-500 mr-2">Jogo {careerData.matchesPlayed - i}</span>
-                                    {log}
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-                
-                <button 
-                    onClick={() => setView('dashboard')}
-                    className="w-full text-slate-500 hover:text-white py-4 text-sm font-medium"
-                >
-                    Sair do Modo Carreira
-                </button>
-            </div>
-        )}
-
-        {view === 'social' && (
-            <div className="animate-fade-in max-w-2xl mx-auto">
-                 <div className="flex items-center gap-2 mb-6 sticky top-0 bg-slate-50 z-40 py-2">
-                    <button 
-                        onClick={() => setView('dashboard')}
-                        className="p-2 hover:bg-slate-200 rounded-full text-slate-700 transition-colors"
-                    >
-                        <ArrowLeft size={24} />
-                    </button>
-                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                        <Smartphone size={28} className="text-pink-600" />
-                        BrazucaGram
-                    </h2>
-                 </div>
-                 
-                 <div className="space-y-6">
-                    {socialPosts.map((post) => (
-                        <div key={post.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                            {/* Header */}
-                            <div className="p-3 flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-400 to-pink-600 flex items-center justify-center text-white font-bold text-xs">
-                                    {post.authorName.charAt(0)}
-                                </div>
-                                <div>
-                                    <p className="text-sm font-bold text-slate-800 leading-none">{post.authorName}</p>
-                                    {post.teamName && <p className="text-[10px] text-slate-500">{post.teamName}</p>}
-                                </div>
-                                <span className="ml-auto text-xs text-slate-400">{post.timeAgo}</span>
-                            </div>
-                            
-                            {/* Toggle Photo Visibility */}
-                            <div className="px-3 pb-2 flex justify-end">
-                                <button 
-                                    onClick={() => togglePostImage(post.id)}
-                                    className="text-xs text-slate-500 flex items-center gap-1 hover:text-slate-800"
-                                >
-                                    {expandedPostIds.has(post.id) ? (
-                                        <><EyeOff size={14} /> Ocultar Foto</>
-                                    ) : (
-                                        <><Eye size={14} /> Ver Foto</>
-                                    )}
-                                </button>
-                            </div>
-
-                            {/* Fake Photo (Conditional) */}
-                            {expandedPostIds.has(post.id) && (
-                                <div className={`aspect-square w-full flex items-center justify-center relative animate-fade-in
-                                    ${post.imageType === 'training' ? 'bg-gradient-to-br from-green-400 to-emerald-600' : 
-                                      post.imageType === 'match' ? 'bg-gradient-to-br from-blue-500 to-indigo-700' :
-                                      post.imageType === 'leisure' ? 'bg-gradient-to-br from-amber-300 to-orange-500' :
-                                      'bg-gradient-to-br from-purple-500 to-pink-600'
-                                    }
-                                `}>
-                                    <div className="text-white opacity-80 transform scale-150">
-                                        {post.imageType === 'training' && <Dumbbell size={48} />}
-                                        {post.imageType === 'match' && <Trophy size={48} />}
-                                        {post.imageType === 'leisure' && <Coffee size={48} />}
-                                        {post.imageType === 'celebration' && <Star size={48} />}
-                                    </div>
-                                    
-                                    {/* Photo Tag/Overlay */}
-                                    <div className="absolute bottom-3 right-3 bg-black/30 backdrop-blur-md px-2 py-1 rounded text-white text-[10px] font-bold flex items-center gap-1">
-                                        <Camera size={10} /> 
-                                        {post.imageType === 'training' ? 'CT do Clube' : 
-                                         post.imageType === 'match' ? 'Dia de Jogo' : 
-                                         'Lifestyle'}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Actions & Content */}
-                            <div className="p-3">
-                                <div className="flex gap-4 mb-2">
-                                    <button 
-                                        onClick={() => handleLikePost(post.id)}
-                                        className={`transition-transform active:scale-125 ${post.isLiked ? 'text-red-500' : 'text-slate-800 hover:text-slate-600'}`}
-                                    >
-                                        <Heart size={24} fill={post.isLiked ? "currentColor" : "none"} />
-                                    </button>
-                                    <button className="text-slate-800 hover:text-slate-600">
-                                        <MessageCircle size={24} />
-                                    </button>
-                                </div>
-                                
-                                <p className="text-sm font-bold text-slate-800 mb-1">{post.likes} curtidas</p>
-                                
-                                <div className="text-sm text-slate-700 mb-2">
-                                    <span className="font-bold mr-2">{post.authorName}</span>
-                                    {post.content}
-                                </div>
-
-                                {/* Comments */}
-                                {post.comments.length > 0 && (
-                                    <div className="mb-2 space-y-1">
-                                        {post.comments.map(c => (
-                                            <p key={c.id} className="text-xs text-slate-600">
-                                                <span className="font-bold text-slate-800 mr-1">{c.author}</span>
-                                                {c.text}
-                                            </p>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Add Comment Input */}
-                                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Adicione um comentário..."
-                                        value={commentInputs[post.id] || ""}
-                                        onChange={(e) => setCommentInputs(prev => ({...prev, [post.id]: e.target.value}))}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleCommentPost(post.id)}
-                                        className="flex-1 text-xs outline-none bg-transparent"
-                                    />
-                                    <button 
-                                        onClick={() => handleCommentPost(post.id)}
-                                        className="text-blue-500 text-xs font-bold disabled:opacity-50"
-                                        disabled={!commentInputs[post.id]}
-                                    >
-                                        Publicar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                    <div className="h-20"></div>
-                 </div>
-            </div>
-        )}
-
-        {view === 'standings' && (
-            <div className="animate-fade-in">
-                <Card title="Tabela de Classificação">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left text-slate-600">
-                            <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
-                                <tr>
-                                    <th className="px-4 py-3">#</th>
-                                    <th className="px-4 py-3">Time</th>
-                                    <th className="px-4 py-3 text-center">PTS</th>
-                                    <th className="px-4 py-3 text-center hidden md:table-cell">J</th>
-                                    <th className="px-4 py-3 text-center hidden md:table-cell">V</th>
-                                    <th className="px-4 py-3 text-center hidden md:table-cell">E</th>
-                                    <th className="px-4 py-3 text-center hidden md:table-cell">D</th>
-                                    <th className="px-4 py-3 text-center hidden sm:table-cell">GP</th>
-                                    <th className="px-4 py-3 text-center hidden sm:table-cell">GC</th>
-                                    <th className="px-4 py-3 text-center hidden sm:table-cell">SG</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {leagueTable.map((team, index) => (
-                                    <tr 
-                                        key={team.id} 
-                                        className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors ${team.id === userTeam?.id ? 'bg-emerald-50 hover:bg-emerald-100' : ''}`}
-                                    >
-                                        <td className="px-4 py-3 font-medium text-slate-400">
-                                            {index < 4 ? <span className="text-blue-500 font-bold">{index + 1}</span> : 
-                                             index >= leagueTable.length - 4 ? <span className="text-red-500 font-bold">{index + 1}</span> : 
-                                             index + 1}
-                                        </td>
-                                        <td className={`px-4 py-3 font-medium ${team.id === userTeam?.id ? 'text-emerald-700 font-bold' : 'text-slate-800'}`}>
-                                            {team.name}
-                                        </td>
-                                        <td className="px-4 py-3 text-center font-bold text-slate-800">{team.points}</td>
-                                        <td className="px-4 py-3 text-center hidden md:table-cell">{team.played}</td>
-                                        <td className="px-4 py-3 text-center hidden md:table-cell text-emerald-600">{team.won}</td>
-                                        <td className="px-4 py-3 text-center hidden md:table-cell text-amber-600">{team.drawn}</td>
-                                        <td className="px-4 py-3 text-center hidden md:table-cell text-red-600">{team.lost}</td>
-                                        <td className="px-4 py-3 text-center hidden sm:table-cell">{team.gf}</td>
-                                        <td className="px-4 py-3 text-center hidden sm:table-cell">{team.ga}</td>
-                                        <td className="px-4 py-3 text-center hidden sm:table-cell font-bold">{team.gf - team.ga}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
-            </div>
-        )}
-
-        {view === 'squad' && (
-             <div className="animate-fade-in space-y-6">
-                 <Card 
-                    title="Elenco Atual" 
-                    action={
-                        <div className="text-xs text-slate-500 font-normal">
-                            Média Geral: <strong className="text-slate-800">{avgRating}</strong>
-                        </div>
-                    }
-                 >
-                    <div className="space-y-1">
-                        <div className="bg-slate-50 p-2 rounded text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 grid grid-cols-[1fr_auto] gap-4">
-                             <span>Jogador</span>
-                             <div className="flex gap-6 mr-16">
-                                 <span className="hidden sm:inline w-20 text-center">Contrato</span>
-                                 <span className="w-[30px] text-center">OVR</span>
-                                 <span className="w-16 md:w-24 text-right">Valor</span>
+                  {view === 'squad' && (
+                      <div className="space-y-6">
+                         <Card title="Seu Elenco">
+                             <div className="space-y-1">
+                                 {squad.sort((a,b) => b.rating - a.rating).map(player => (
+                                     <PlayerRow 
+                                         key={player.id} 
+                                         player={player} 
+                                         onRenew={(p) => {
+                                             alert(`Contrato de ${p.name} renovado!`);
+                                             setSquad(prev => prev.map(pl => pl.id === p.id ? {...pl, contractWeeks: pl.contractWeeks + 52} : pl));
+                                         }}
+                                     />
+                                 ))}
                              </div>
-                        </div>
-                        {squad.sort((a, b) => b.rating - a.rating).map((player) => (
-                            <PlayerRow 
-                                key={player.id} 
-                                player={player} 
-                                showPrice={true}
-                                onSell={handleInitiateSell}
-                                onLoan={handleInitiateLoan}
-                                onRenew={handleRenew}
-                            />
-                        ))}
-                    </div>
-                 </Card>
-             </div>
-        )}
+                         </Card>
+                      </div>
+                  )}
+                  
+                   {view === 'standings' && (
+                      <Card title="Tabela do Campeonato">
+                          <div className="overflow-x-auto">
+                              <table className="w-full text-sm text-left">
+                                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                                      <tr>
+                                          <th className="p-3 font-bold w-10">#</th>
+                                          <th className="p-3 font-bold">Clube</th>
+                                          <th className="p-3 font-bold text-center">P</th>
+                                          <th className="p-3 font-bold text-center hidden sm:table-cell">J</th>
+                                          <th className="p-3 font-bold text-center hidden sm:table-cell">V</th>
+                                          <th className="p-3 font-bold text-center hidden sm:table-cell">E</th>
+                                          <th className="p-3 font-bold text-center hidden sm:table-cell">D</th>
+                                          <th className="p-3 font-bold text-center hidden md:table-cell">SG</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody>
+                                      {leagueTable.sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)).map((team, index) => (
+                                          <tr key={team.id} className={`border-b border-slate-100 hover:bg-slate-50 ${team.id === userTeam?.id ? 'bg-emerald-50' : ''}`}>
+                                              <td className="p-3 font-bold text-slate-400">{index + 1}</td>
+                                              <td className="p-3 font-semibold text-slate-800 flex items-center gap-2">
+                                                 {team.id === userTeam?.id && <div className="w-2 h-2 rounded-full bg-emerald-500"></div>}
+                                                 {team.name}
+                                              </td>
+                                              <td className="p-3 font-bold text-center text-slate-900">{team.points}</td>
+                                              <td className="p-3 text-center hidden sm:table-cell text-slate-600">{team.played}</td>
+                                              <td className="p-3 text-center hidden sm:table-cell text-green-600 font-medium">{team.won}</td>
+                                              <td className="p-3 text-center hidden sm:table-cell text-slate-500">{team.drawn}</td>
+                                              <td className="p-3 text-center hidden sm:table-cell text-red-500">{team.lost}</td>
+                                              <td className="p-3 text-center hidden md:table-cell text-slate-600 font-mono">{team.gf - team.ga > 0 ? `+${team.gf - team.ga}` : team.gf - team.ga}</td>
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                              </table>
+                          </div>
+                      </Card>
+                  )}
 
-        {view === 'market' && (
-             <div className="animate-fade-in space-y-6">
-                 <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold text-slate-800">Mercado da Bola</h2>
-                    <button 
-                        onClick={() => {
-                            setMarket([]);
-                            generateTransferMarket().then(setMarket);
-                        }}
-                        className="text-sm text-emerald-600 hover:underline"
-                    >
-                        Atualizar Lista
-                    </button>
-                 </div>
-
-                 <Card>
-                    <div className="space-y-1">
-                        {market.length === 0 ? (
-                            <div className="text-center py-8 text-slate-500">
-                                Buscando jogadores disponíveis...
-                            </div>
-                        ) : (
-                            market.map((player) => (
-                                <PlayerRow 
-                                    key={player.id} 
-                                    player={player} 
-                                    showPrice={true}
-                                    actionButton={
-                                        <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => handleLoanIn(player)}
-                                                className="bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-100 transition-colors shadow-sm"
-                                                title="Empréstimo (12 sem.)"
-                                            >
-                                                Emp. (12 sem.)
-                                            </button>
-                                            <button 
-                                                onClick={() => handleOpenNegotiation(player)}
-                                                className="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs md:text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
-                                            >
-                                                Comprar
-                                            </button>
-                                        </div>
-                                    }
-                                />
-                            ))
-                        )}
-                    </div>
-                 </Card>
-             </div>
-        )}
-
-        {view === 'trophies' && (
-            <div className="animate-fade-in">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-slate-800">Sala de Troféus</h2>
-                    <div className="text-sm text-slate-500">{trophies.length} Conquistas</div>
-                </div>
-                
-                {trophies.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-slate-200 border-dashed">
-                        <div className="bg-slate-100 p-4 rounded-full mb-4 opacity-50">
-                            <Award size={48} className="text-slate-400" />
-                        </div>
-                        <h3 className="text-lg font-medium text-slate-600 mb-1">Nenhum troféu ainda</h3>
-                        <p className="text-slate-400 text-sm text-center max-w-xs">Vença o campeonato atingindo 89 pontos para começar sua coleção.</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {trophies.map((trophy) => (
-                            <div key={trophy.id} className="bg-white p-6 rounded-xl shadow-sm border border-amber-100 flex flex-col items-center text-center relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div>
-                                <div className="p-4 bg-amber-50 rounded-full mb-4 text-amber-500">
-                                    <Trophy size={32} fill="#fbbf24" />
-                                </div>
-                                <h3 className="font-bold text-slate-800 mb-1">{trophy.name}</h3>
-                                <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{trophy.competition}</p>
-                                <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">{trophy.year}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        )}
-
-        {view === 'settings' && userTeam && (
-            <div className="animate-fade-in max-w-4xl mx-auto">
-                <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <Settings className="text-slate-400" />
-                    Configurações do Clube
-                </h2>
-
-                <div className="space-y-8">
-                    {/* Team Settings */}
-                    <Card title="Detalhes do Time">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Nome do Clube</label>
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        value={userTeam.name} 
-                                        onChange={(e) => updateTeamName(e.target.value)}
-                                        className="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    />
-                                </div>
-                                <p className="text-xs text-slate-500 mt-2">Isso alterará o nome do time na tabela e nos placares.</p>
-                            </div>
-                        </div>
-                    </Card>
-
-                    {/* Player Editor */}
-                    <Card title="Editar Elenco">
-                        <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto pr-2">
-                            {squad.sort((a,b) => b.rating - a.rating).map((player) => (
-                                <div key={player.id} className="py-3 flex items-center gap-3">
-                                    <div className="flex-1">
-                                        <label className="text-xs text-slate-500 block mb-1">Nome do Jogador ({player.position})</label>
-                                        <div className="flex items-center gap-2">
-                                            <input 
-                                                type="text" 
-                                                value={player.name} 
-                                                onChange={(e) => updatePlayerName(player.id, e.target.value)}
-                                                className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm focus:border-emerald-500 outline-none"
-                                            />
-                                            <span className="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-600">{player.rating}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </Card>
-                </div>
-            </div>
-        )}
-
-        {view === 'match' && userTeam && (
-            <div className="max-w-4xl mx-auto animate-fade-in">
-                {!isSimulating && !matchResult && !isVisualMatch && (
-                    <div className="text-center py-12 md:py-20">
-                        <div className="bg-white p-6 md:p-10 rounded-2xl shadow-xl border border-slate-100">
-                            <Trophy size={48} className="md:w-16 md:h-16 text-yellow-500 mx-auto mb-6" />
-                            <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-4">Dia de Jogo</h2>
-                            <p className="text-slate-500 mb-8 text-sm md:text-base">Escolha como deseja acompanhar a partida.</p>
-                            
-                            <div className="flex flex-col md:flex-row gap-4 justify-center">
-                                <button 
-                                    onClick={() => prepareMatch(false)}
-                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 px-8 rounded-xl transition-all flex items-center justify-center gap-2"
-                                >
-                                    <Zap size={20} />
-                                    Simulação Rápida
-                                </button>
-                                <button 
-                                    onClick={() => prepareMatch(true)}
-                                    className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-lg px-10 py-4 rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all transform hover:scale-105 flex items-center justify-center gap-2"
-                                >
-                                    <MonitorPlay size={24} />
-                                    Assistir Partida 2D
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {isVisualMatch && userTeam && currentOpponent && (
-                    <div className="space-y-6">
-                        <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-2xl text-white">
-                            <div className="p-4 flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${userTeam.primaryColor} ${userTeam.secondaryColor}`}>
-                                        {userTeam.name.substring(0, 2)}
-                                    </div>
-                                    <span className="font-bold text-xl">{currentScore.home}</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-slate-800 px-3 py-1 rounded text-xs font-mono text-emerald-400 animate-pulse">
-                                        {isHalftime ? "INTERVALO" : "AO VIVO"}
-                                    </div>
-                                    <button 
-                                        onClick={() => setSoundEnabled(!soundEnabled)}
-                                        className="p-2 hover:bg-slate-700 rounded-full transition-colors"
-                                        title={soundEnabled ? "Desativar Som" : "Ativar Som"}
-                                    >
-                                        {soundEnabled ? <Volume2 size={18} className="text-slate-300" /> : <VolumeX size={18} className="text-slate-500" />}
-                                    </button>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="font-bold text-xl">{currentScore.away}</span>
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${currentOpponent.primaryColor} ${currentOpponent.secondaryColor}`}>
-                                        {currentOpponent.name.substring(0, 2)}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* 2D Field */}
-                            <div className="relative">
-                                <SoccerField 
-                                    homeTeam={userTeam}
-                                    awayTeam={currentOpponent}
-                                    gameTime={simTime}
-                                    ballPos={ballPosition}
-                                    homePositions={homePlayerPos}
-                                    awayPositions={awayPlayerPos}
-                                />
-
-                                {/* Halftime Overlay */}
-                                {isHalftime && (
-                                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-50">
-                                        <h2 className="text-3xl font-bold text-white mb-2">INTERVALO</h2>
-                                        <p className="text-slate-300 mb-6">Fim do 1º Tempo</p>
-                                        <button 
-                                            onClick={startSecondHalf}
-                                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-full transition-all transform hover:scale-105 shadow-lg"
-                                        >
-                                            Iniciar 2º Tempo
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* TACTIC CONTROLS (MOVED BELOW FIELD) */}
-                        <div className="flex flex-wrap justify-center gap-2 mt-4">
-                            <button 
-                                onClick={() => setCurrentTactic('balanced')}
-                                className={`px-4 py-3 rounded-xl font-bold border transition-all flex-1 md:flex-none min-w-[100px] text-center ${currentTactic === 'balanced' ? 'bg-white text-slate-900 border-slate-300 shadow-md scale-105' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}
-                            >
-                                Equilibrado
-                            </button>
-                            <button 
-                                onClick={() => setCurrentTactic('offensive')}
-                                className={`px-4 py-3 rounded-xl font-bold border transition-all flex-1 md:flex-none min-w-[100px] flex items-center justify-center gap-2 ${currentTactic === 'offensive' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md scale-105' : 'bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50'}`}
-                            >
-                                <Sword size={16} /> Ofensivo
-                            </button>
-                            <button 
-                                onClick={() => setCurrentTactic('defensive')}
-                                className={`px-4 py-3 rounded-xl font-bold border transition-all flex-1 md:flex-none min-w-[100px] flex items-center justify-center gap-2 ${currentTactic === 'defensive' ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'}`}
-                            >
-                                <Shield size={16} /> Defensivo
-                            </button>
-                            <button 
-                                onClick={() => setCurrentTactic('counter')}
-                                className={`px-4 py-3 rounded-xl font-bold border transition-all flex-1 md:flex-none min-w-[100px] flex items-center justify-center gap-2 ${currentTactic === 'counter' ? 'bg-amber-500 text-white border-amber-500 shadow-md scale-105' : 'bg-white text-amber-600 border-amber-200 hover:bg-amber-50'}`}
-                            >
-                                <MoveRight size={16} /> Contra-Ataque
-                            </button>
-                        </div>
-                        
-                        <div className="text-center text-slate-500 text-xs mt-2">
-                            Estratégia Atual: <span className="font-bold text-slate-700 uppercase">
-                                {currentTactic === 'balanced' && "Equilibrada"}
-                                {currentTactic === 'offensive' && "Pressão Alta"}
-                                {currentTactic === 'defensive' && "Retranca"}
-                                {currentTactic === 'counter' && "Contra-Ataque Rápido"}
-                            </span>
-                        </div>
-                    </div>
-                )}
-
-                {isSimulating && !isVisualMatch && (
-                    <div className="text-center py-32">
-                         <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-600 mx-auto mb-6"></div>
-                         <h3 className="text-xl font-bold text-slate-700">Calculando Resultado...</h3>
-                         {preparingVisualMatch && <p className="text-xs text-emerald-600 mt-2 font-medium">Som da torcida ativado</p>}
-                    </div>
-                )}
-
-                {matchResult && !isSimulating && !isVisualMatch && (
-                    <div className="space-y-6">
-                        {/* Scoreboard */}
-                        <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-2xl text-white">
-                            <div className="p-6 md:p-8 flex justify-between items-center relative">
-                                <div className="text-center w-1/3">
-                                    <h3 className="text-sm md:text-2xl font-bold mb-1 md:mb-2 truncate">{userTeam.name}</h3>
-                                    <div className={`text-3xl md:text-6xl font-bold ${matchResult.win ? 'text-emerald-400' : ''}`}>
-                                        {matchResult.homeScore}
-                                    </div>
-                                </div>
-                                <div className="text-slate-500 font-mono text-xs md:text-sm uppercase tracking-widest">Final</div>
-                                <div className="text-center w-1/3">
-                                    <h3 className="text-sm md:text-2xl font-bold mb-1 md:mb-2 truncate">{matchResult.opponentName}</h3>
-                                    <div className="text-3xl md:text-6xl font-bold">
-                                        {matchResult.awayScore}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="bg-slate-800 p-4 text-center border-t border-slate-700">
-                                <p className="text-slate-300 text-sm md:text-base italic">"{matchResult.summary}"</p>
-                            </div>
-                        </div>
-
-                        {/* Events Timeline */}
-                        <Card title="Lances da Partida">
-                            <div className="space-y-4">
-                                {matchResult.events.map((event, idx) => (
-                                    <div key={idx} className={`flex items-start gap-3 md:gap-4 ${event.team === 'away' ? 'flex-row-reverse text-right' : ''}`}>
-                                        <div className="w-10 md:w-12 flex-shrink-0 text-center pt-1">
-                                            <span className="font-mono font-bold text-slate-400 text-sm">{event.minute}'</span>
-                                        </div>
-                                        <div className={`flex-1 p-3 rounded-lg text-sm md:text-base ${
-                                            event.type === 'goal' ? 'bg-emerald-50 border border-emerald-100' : 
-                                            event.type === 'card' ? 'bg-yellow-50 border border-yellow-100' : 
-                                            'bg-slate-50'
-                                        }`}>
-                                            <div className={`flex items-center gap-2 mb-1 ${event.team === 'away' ? 'justify-end' : ''}`}>
-                                                {event.type === 'goal' && "⚽ GOL"}
-                                                {event.type === 'card' && "🟨 Cartão"}
-                                                {event.type === 'substitution' && "🔄 Troca"}
-                                            </div>
-                                            <p className="text-slate-800 font-medium leading-tight">{event.description}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                                {matchResult.events.length === 0 && (
-                                    <p className="text-center text-slate-400 py-4">Jogo truncado, poucas chances claras.</p>
-                                )}
-                            </div>
-                        </Card>
-
-                        <div className="grid grid-cols-2 gap-4">
-                             <button 
-                                onClick={() => setView('standings')}
-                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2"
-                            >
-                                <ListOrdered size={20} />
-                                Ver Tabela
-                            </button>
-                            <button 
-                                onClick={() => setMatchResult(null)}
-                                className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-4 rounded-xl transition-colors"
-                            >
-                                Voltar
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        )}
-
-      </main>
-      
-      {/* Hide MobileNav in career mode */}
-      {!isCareerView && (
-          <MobileNav 
-            currentView={view} 
-            onChangeView={setView} 
-            team={userTeam} 
-          />
-      )}
-    </div>
+                  {/* Placeholder for other views to keep code clean */}
+                  {view === 'market' && <div className="text-center py-20 text-slate-500">Mercado de Transferências (Em Breve)</div>}
+                  {view === 'match' && <div className="text-center py-20 text-slate-500">Simulação de Partida (Use o Menu Principal)</div>}
+              </main>
+          </div>
+          
+          <MobileNav currentView={view} onChangeView={setView} team={userTeam} />
+      </div>
   );
 }
