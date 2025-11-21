@@ -644,7 +644,15 @@ export default function App() {
 
   if (view === 'career-intro') {
       return (
-          <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+          <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative">
+              <button 
+                  onClick={() => setView('dashboard')}
+                  className="absolute top-6 left-6 text-slate-400 hover:text-white flex items-center gap-2 transition-colors"
+              >
+                  <ArrowLeft size={24} />
+                  <span className="font-bold">Voltar ao Início</span>
+              </button>
+
               <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
                   <h1 className="text-3xl font-bold text-white mb-6 text-center">Rumo ao Estrelato</h1>
                   
@@ -930,9 +938,9 @@ export default function App() {
               )}
 
               <div className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 p-4 flex justify-around z-40">
-                  <button onClick={() => setView('select-team')} className="flex flex-col items-center text-slate-500 hover:text-white">
+                  <button onClick={() => setView('dashboard')} className="flex flex-col items-center text-slate-500 hover:text-white">
                       <ArrowLeft size={20} />
-                      <span className="text-[10px] mt-1">Sair</span>
+                      <span className="text-[10px] mt-1">Voltar ao Início</span>
                   </button>
               </div>
           </div>
