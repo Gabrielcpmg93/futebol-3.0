@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData, SocialComment } from './types';
+import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData, SocialComment, Transaction } from './types';
 import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateFictionalTeamName, getFictionalLeagueNames, generateSocialFeed } from './services/geminiService';
 import { Card } from './components/Card';
 import { PlayerRow } from './components/PlayerRow';
@@ -19,26 +19,14 @@ import {
     Briefcase,
     MonitorPlay,
     Zap,
-    Volume2,
-    VolumeX,
     Handshake,
     CheckCircle,
-    Calendar,
     Shield,
-    Sword,
     MoveRight,
     Timer,
     Smartphone,
     Heart,
     MessageCircle,
-    Camera,
-    Dumbbell,
-    Coffee,
-    Eye,
-    EyeOff,
-    ArrowLeft,
-    Medal,
-    TrendingUp,
     ShoppingBag,
     Wallet,
     Shirt,
@@ -47,13 +35,10 @@ import {
     X,
     User,
     Target,
-    Footprints,
-    RefreshCw,
-    Send,
-    CalendarClock,
     FileText,
-    Info,
-    User as UserIcon
+    BarChart3,
+    CalendarClock,
+    Send
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -195,18 +180,6 @@ const MobileNav = ({
     );
 };
 
-const StatsCard = ({ title, value, icon, colorClass, bgClass }: any) => (
-    <div className={`bg-white rounded-xl p-4 shadow-sm border-l-4 ${colorClass} min-w-[160px] md:min-w-0 flex-1 flex items-center justify-between md:block snap-start flex-shrink-0`}>
-        <div>
-            <p className="text-[10px] md:text-xs text-slate-500 font-medium uppercase tracking-wide">{title}</p>
-            <p className="text-lg md:text-2xl font-bold text-slate-800 mt-1">{value}</p>
-        </div>
-        <div className={`${bgClass} p-2 rounded-full md:float-right md:-mt-8`}>
-            {icon}
-        </div>
-    </div>
-);
-
 // --- 2D Field Component ---
 const SoccerField = ({ 
     homeTeam, 
@@ -234,33 +207,14 @@ const SoccerField = ({
             </div>
 
             {/* Field Lines */}
-            {/* Center Line */}
             <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/60 transform -translate-x-1/2 z-0"></div>
-            
-            {/* Center Circle */}
             <div className="absolute top-1/2 left-1/2 w-20 h-20 md:w-32 md:h-32 border-2 border-white/60 rounded-full transform -translate-x-1/2 -translate-y-1/2 z-0"></div>
             <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-white rounded-full transform -translate-x-1/2 -translate-y-1/2 z-0"></div>
-
-            {/* Outer Boundary */}
             <div className="absolute top-0 left-0 w-full h-full border-2 border-white/60 m-2 md:m-4 box-border pointer-events-none z-0" style={{ width: 'calc(100% - 16px)', height: 'calc(100% - 16px)' }}></div>
             
-            {/* Penalty Areas - Left */}
+            {/* Areas */}
             <div className="absolute top-1/2 left-0 w-[14%] h-[40%] border-2 border-white/60 bg-transparent transform -translate-y-1/2 ml-2 md:ml-4 z-0"></div>
-            <div className="absolute top-1/2 left-0 w-[5%] h-[20%] border-r-2 border-y-2 border-white/60 bg-transparent transform -translate-y-1/2 ml-2 md:ml-4 z-0"></div>
-            
-            {/* Penalty Areas - Right */}
             <div className="absolute top-1/2 right-0 w-[14%] h-[40%] border-2 border-white/60 bg-transparent transform -translate-y-1/2 mr-2 md:mr-4 z-0"></div>
-            <div className="absolute top-1/2 right-0 w-[5%] h-[20%] border-l-2 border-y-2 border-white/60 bg-transparent transform -translate-y-1/2 mr-2 md:mr-4 z-0"></div>
-
-            {/* Corners */}
-            <div className="absolute top-2 left-2 md:top-4 md:left-4 w-4 h-4 border-b-2 border-r-2 border-white/60 rounded-br-full z-0"></div>
-            <div className="absolute top-2 right-2 md:top-4 md:right-4 w-4 h-4 border-b-2 border-l-2 border-white/60 rounded-bl-full z-0"></div>
-            <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 w-4 h-4 border-t-2 border-r-2 border-white/60 rounded-tr-full z-0"></div>
-            <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4 w-4 h-4 border-t-2 border-l-2 border-white/60 rounded-tl-full z-0"></div>
-
-            {/* Goals */}
-            <div className="absolute top-1/2 left-0 w-1.5 h-12 md:h-16 bg-slate-200 border border-slate-400 transform -translate-y-1/2 -translate-x-full shadow-sm"></div>
-            <div className="absolute top-1/2 right-0 w-1.5 h-12 md:h-16 bg-slate-200 border border-slate-400 transform -translate-y-1/2 translate-x-full shadow-sm"></div>
 
             {/* Players - Home */}
             {homePositions.map((pos, i) => (
@@ -307,31 +261,14 @@ export default function App() {
   const [squad, setSquad] = useState<Player[]>([]);
   const [market, setMarket] = useState<Player[]>([]);
   const [budget, setBudget] = useState<number>(50); // Millions
+  const [transactions, setTransactions] = useState<Transaction[]>([]); // Financial History
   const [week, setWeek] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
   const [trophies, setTrophies] = useState<TrophyType[]>([]);
+  const [showFinances, setShowFinances] = useState(false);
   
-  // Buying / Negotiating State
-  const [negotiationPlayer, setNegotiationPlayer] = useState<Player | null>(null);
-  const [negotiationOffer, setNegotiationOffer] = useState<{salary: number, weeks: number}>({ salary: 50, weeks: 52 });
-  
-  // Selling State
-  const [sellingPlayer, setSellingPlayer] = useState<Player | null>(null);
-  const [offers, setOffers] = useState<{team: string, value: number}[]>([]);
-
-  // Loan OUT State
-  const [loaningPlayer, setLoaningPlayer] = useState<Player | null>(null);
-  const [loanOffers, setLoanOffers] = useState<{team: string, value: number}[]>([]);
-  
-  // Renewals Log State
-  const [renewedLog, setRenewedLog] = useState<{playerName: string, weeks: number, weekRenewer: number}[]>([]);
-
   // Match State
-  const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
-  const [isSimulating, setIsSimulating] = useState(false);
   const [leagueTable, setLeagueTable] = useState<TeamStats[]>([]);
-  
-  // 2D Match Simulation State
   const [isVisualMatch, setIsVisualMatch] = useState(false);
   const [preparingVisualMatch, setPreparingVisualMatch] = useState(false); // To handle loading state audio
   const [simTime, setSimTime] = useState(0);
@@ -343,12 +280,13 @@ export default function App() {
   const [matchEvents, setMatchEvents] = useState<any[]>([]);
   const [lastEventIndex, setLastEventIndex] = useState(-1);
 
-  // Halftime State
-  const [isHalftime, setIsHalftime] = useState(false);
-  const [hasPlayedSecondHalf, setHasPlayedSecondHalf] = useState(false);
-
   // TACTICS STATE
-  const [currentTactic, setCurrentTactic] = useState<'balanced' | 'offensive' | 'defensive' | 'counter'>('balanced');
+  const [tactics, setTactics] = useState({
+      formation: '4-3-3',
+      style: 'Equilibrado',
+      intensity: 'Normal'
+  });
+  const [tacticalFeedback, setTacticalFeedback] = useState('');
 
   // Audio State
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -364,8 +302,14 @@ export default function App() {
   const [showContract, setShowContract] = useState(false);
   const [showCareerTrophies, setShowCareerTrophies] = useState(false);
   const [careerTransferOffers, setCareerTransferOffers] = useState<Array<{name: string, color: string}>>([]);
-  // New: Trophy Filter State
   const [trophyFilterSeason, setTrophyFilterSeason] = useState<number | 'all'>('all');
+
+  // Renewals Log State
+  const [renewedLog, setRenewedLog] = useState<{playerName: string, weeks: number, weekRenewer: number}[]>([]);
+
+  // Social Feed State
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
+  const [commentText, setCommentText] = useState<{[key: string]: string}>({});
 
   const shopItems = [
       { id: 'phone', name: 'iPhone 15 Pro', price: 5000, icon: <Smartphone size={20} /> },
@@ -376,28 +320,19 @@ export default function App() {
       { id: 'console', name: 'Videogame', price: 3500, icon: <MonitorPlay size={20} /> }
   ];
 
-  // Social Feed State
-  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
-  const [commentText, setCommentText] = useState<{[key: string]: string}>({});
-
   // Logic to initialize table with FICTIONAL TEAMS + USER TEAM
   const initializeTable = (selectedTeam: Team) => {
       const fictionalNames = getFictionalLeagueNames(11); // Get 11 random fictional team names
-      
-      // 1. User Team
       const userStats: TeamStats = {
           id: selectedTeam.id,
           name: selectedTeam.name,
           points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0
       };
-
-      // 2. Fictional Opponents
       const opponentStats: TeamStats[] = fictionalNames.map((name, index) => ({
           id: `fictional-${index}`,
           name: name,
           points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0
       }));
-
       setLeagueTable([userStats, ...opponentStats]);
   };
 
@@ -407,10 +342,7 @@ export default function App() {
     audio.loop = true;
     audio.volume = 0.4;
     audioRef.current = audio;
-    
-    // Try to load
     audio.load();
-
     return () => {
         audio.pause();
         audioRef.current = null;
@@ -419,19 +351,13 @@ export default function App() {
 
   // Manage Audio Playback
   useEffect(() => {
-    const shouldPlay = (isVisualMatch || preparingVisualMatch) && soundEnabled && !isHalftime;
-    
+    const shouldPlay = (isVisualMatch || preparingVisualMatch) && soundEnabled;
     if (shouldPlay && audioRef.current) {
-         const playPromise = audioRef.current.play();
-         if (playPromise !== undefined) {
-             playPromise.catch(error => {
-                 console.log("Autoplay prevented/interrupted (normal in some flows):", error);
-             });
-         }
-    } else if ((!shouldPlay || isHalftime) && audioRef.current) {
+         audioRef.current.play().catch(e => console.log(e));
+    } else if (!shouldPlay && audioRef.current) {
         audioRef.current.pause();
     }
-  }, [isVisualMatch, preparingVisualMatch, soundEnabled, isHalftime]);
+  }, [isVisualMatch, preparingVisualMatch, soundEnabled]);
 
 
   // Initialization logic
@@ -441,125 +367,35 @@ export default function App() {
         const players = await generateSquadForTeam(team.name);
         setUserTeam(team);
         setSquad(players);
-        initializeTable(team); // Pass team to init table
-        setSocialPosts(generateSocialFeed()); // Generate social feed
+        initializeTable(team);
+        setSocialPosts(generateSocialFeed());
         setView('dashboard');
-        
-        // Pre-fetch market in background
         generateTransferMarket().then(setMarket);
     } catch (error) {
         console.error("Failed to start game", error);
-        alert("Erro ao iniciar o jogo. Verifique a conexão ou a chave da API.");
+        alert("Erro ao iniciar o jogo.");
         setUserTeam(null);
     } finally {
         setLoading(false);
     }
   };
 
-  // --- Career Mode Handlers ---
-  
-  const handleStartCareer = () => {
-      setCareerData(null);
-      setCareerTempName("");
-      setCareerTempPos(Position.ATT);
-      setView('career-intro');
-  };
+  // --- Helper Functions ---
 
-  const handlePlayAmateurMatch = async () => {
-      if (!careerTempName) {
-          alert("Digite o nome do seu jogador!");
-          return;
-      }
-      setLoading(true);
-      
-      // Simulate "Playing"
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Generate random offers
-      const potentialTeams = [...BRAZILIAN_TEAMS].sort(() => 0.5 - Math.random()).slice(0, 3);
-      const newOffers = potentialTeams.map(t => ({
-          name: t.name,
-          color: t.primaryColor
-      }));
-      
-      setCareerOffers(newOffers);
-      setLoading(false);
-  };
-
-  const handleSelectOffer = (offer: {name: string, color: string}) => {
-      const initialData: CareerData = {
-          playerName: careerTempName,
-          position: careerTempPos,
-          teamName: offer.name,
-          teamColor: offer.color,
-          matchesPlayed: 0,
-          goals: 0,
-          assists: 0,
-          rating: 70,
-          history: [],
-          cash: 500, // Initial R$
-          inventory: [],
-          season: 1,
-          trophies: []
+  const addTransaction = (type: Transaction['type'], description: string, amount: number) => {
+      const newTx: Transaction = {
+          id: Math.random().toString(36).substr(2, 9),
+          type,
+          description,
+          amount,
+          week
       };
-      setCareerData(initialData);
-      setView('career-hub');
+      setTransactions(prev => [newTx, ...prev]);
   };
-
-  const handleSimulateWeek = async () => {
-      if (!careerData) return;
-      setLoading(true);
-      await new Promise(r => setTimeout(r, 1500));
-
-      // Random Performance
-      const performance = Math.floor(Math.random() * 10) + 1; // 1-10 rating
-      const goalsScored = careerData.position === Position.ATT ? (performance > 7 ? Math.floor(Math.random() * 3) : 0) : (performance > 9 ? 1 : 0);
-      const assistsMade = performance > 6 ? Math.floor(Math.random() * 2) : 0;
-      const cashEarned = 200 + (goalsScored * 100) + (performance * 20);
-
-      // Check for Transfer Offers (Random chance if performing well)
-      if (performance >= 8 && Math.random() > 0.7) {
-           const randomTeam = BRAZILIAN_TEAMS[Math.floor(Math.random() * BRAZILIAN_TEAMS.length)];
-           if (randomTeam.name !== careerData.teamName) {
-               setCareerTransferOffers(prev => [...prev, { name: randomTeam.name, color: randomTeam.primaryColor }]);
-           }
-      }
-
-      // Check for Trophies (Simple logic: every 10 games played, get a "Season Best" etc just for demo)
-      let newTrophies = [...careerData.trophies];
-      if ((careerData.matchesPlayed + 1) % 10 === 0 && performance > 8) {
-          newTrophies.push({
-              name: "Craque da Rodada",
-              season: careerData.season,
-              description: "Foi o melhor em campo na décima partida."
-          });
-      }
-
-      const newData: CareerData = {
-          ...careerData,
-          matchesPlayed: careerData.matchesPlayed + 1,
-          goals: careerData.goals + goalsScored,
-          assists: careerData.assists + assistsMade,
-          rating: Math.min(99, careerData.rating + (performance > 7 ? 1 : 0)),
-          history: [...careerData.history, `Jogo ${careerData.matchesPlayed + 1}: Nota ${performance} - ${goalsScored} Gols`],
-          cash: careerData.cash + cashEarned,
-          trophies: newTrophies
-      };
-
-      setCareerData(newData);
-      setLoading(false);
-  };
-
-  // --- Game Logic Utils ---
 
   const handleSkipWeek = () => {
-      // 1. Advance Week
       setWeek(w => w + 1);
-      
-      // 2. Simulate other matches (World progresses)
       simulateWorldMatches();
-
-      // 3. Decrease contracts
       setSquad(prev => prev.map(p => ({
           ...p,
           contractWeeks: Math.max(0, p.contractWeeks - 1)
@@ -569,12 +405,9 @@ export default function App() {
   const simulateWorldMatches = () => {
       setLeagueTable(prev => {
            const newTable = [...prev];
-           // Everyone simulates a game
            newTable.forEach(t => {
-                // If not user team (or if user is skipping, also simulate user? For now, skip button implies NO match for user, just rest)
-                // Assuming 'Skip' means Bye week or just fast forward without playing
                 if (t.id !== userTeam?.id) {
-                   if (Math.random() > 0.2) { // 80% chance they played
+                   if (Math.random() > 0.2) {
                        const gf = Math.floor(Math.random() * 4);
                        const ga = Math.floor(Math.random() * 4);
                        t.played += 1;
@@ -592,8 +425,6 @@ export default function App() {
 
   const updateLeagueTable = (result: MatchResult) => {
        let newStatsForCheck: TeamStats | null = null;
-
-       // Update User Team
        setLeagueTable(prev => {
            const newTable = [...prev];
            const userEntry = newTable.find(t => t.id === userTeam?.id);
@@ -604,15 +435,11 @@ export default function App() {
                if (result.homeScore > result.awayScore) { userEntry.points += 3; userEntry.won += 1; }
                else if (result.homeScore === result.awayScore) { userEntry.points += 1; userEntry.drawn += 1; }
                else { userEntry.lost += 1; }
-               
-               newStatsForCheck = {...userEntry}; // Copy for checking after state update
+               newStatsForCheck = {...userEntry};
            }
-           
-           // Simulate other matches for realism
            newTable.forEach(t => {
                if (t.id !== userTeam?.id) {
-                   // Random simulation for others
-                   if (Math.random() > 0.5) { // 50% chance they played this week
+                   if (Math.random() > 0.5) {
                        const gf = Math.floor(Math.random() * 4);
                        const ga = Math.floor(Math.random() * 4);
                        t.played += 1;
@@ -624,30 +451,22 @@ export default function App() {
                    }
                }
            });
-           
            return newTable;
        });
        
        setWeek(w => w + 1);
-
-       // CHECK TROPHY CONDITIONS (Using the local variable to avoid stale state)
        if (newStatsForCheck) {
            const stats = newStatsForCheck as TeamStats;
-
-           // 1. Trophy: "Best Manager" (Reach 38 Points)
            if (stats.points >= 38) {
                setTrophies(prev => {
                    if (!prev.find(t => t.name === 'Melhor Técnico')) {
                        alert("🏆 CONQUISTA: Melhor Técnico! (Atingiu 38 pontos)");
-                       // Navigate to Trophies immediately to show it off
                        setView('trophies');
                        return [...prev, { id: `manager-${Date.now()}`, name: 'Melhor Técnico', year: 1, competition: 'Brasileirão' }];
                    }
                    return prev;
                });
            }
-
-           // 2. Trophy: "Season Champion" (Reach 89 Points)
            if (stats.points >= 89) {
                 setTrophies(prev => {
                    if (!prev.find(t => t.name === 'Campeão Brasileiro')) {
@@ -661,644 +480,103 @@ export default function App() {
        }
   };
 
-  const refreshMarket = async () => {
-      setLoading(true);
-      const newPlayers = await generateTransferMarket();
-      setMarket(newPlayers);
-      setLoading(false);
-  };
-
-  // --- Social Media Logic ---
-  const handleLike = (postId: string) => {
-      setSocialPosts(current => current.map(post => {
-          if (post.id === postId) {
-              return {
-                  ...post,
-                  isLiked: !post.isLiked,
-                  likes: post.isLiked ? post.likes - 1 : post.likes + 1
-              };
-          }
-          return post;
-      }));
-  };
-
-  const handleComment = (postId: string) => {
-      const text = commentText[postId];
-      if (!text || !text.trim()) return;
-
-      // 1. Add User Comment
-      const newComment: SocialComment = {
-          id: Math.random().toString(36).substr(2, 9),
-          author: "Você", // Or Manager Name
-          text: text
-      };
-
-      const targetPost = socialPosts.find(p => p.id === postId);
-
-      setSocialPosts(current => current.map(post => {
-          if (post.id === postId) {
-              return {
-                  ...post,
-                  comments: [...post.comments, newComment]
-              };
-          }
-          return post;
-      }));
-
-      setCommentText(prev => ({...prev, [postId]: ''}));
-
-      // 2. Generate Reply Logic (Simulating AI Response)
-      if (targetPost) {
-          setTimeout(() => {
-              let reply = "";
-              const lowerText = text.toLowerCase();
-
-              // Simple Sentiment Analysis Contextual
-              const positiveWords = ['boa', 'top', 'craque', 'mito', 'monstro', 'parabéns', 'jogou muito', 'golaço', 'amo', 'idolo', 'ídolo', 'fera', 'brabo'];
-              const negativeWords = ['ruim', 'lixo', 'bagre', 'horrível', 'vergonha', 'pipoqueiro', 'fora', 'pior', 'pereba'];
-              
-              if (positiveWords.some(w => lowerText.includes(w))) {
-                  const replies = [
-                      "Obrigado pelo apoio! Tmj 👊", 
-                      "Seguimos fortes! 💪", 
-                      "Valeu! Isso é fruto de muito trabalho.", 
-                      "A torcida merece! 🔥", 
-                      "Você é fera! Obrigado.",
-                      "Vamos por mais! 🏆"
-                  ];
-                  reply = replies[Math.floor(Math.random() * replies.length)];
-              } else if (negativeWords.some(w => lowerText.includes(w))) {
-                  const replies = [
-                      "Críticas fazem parte. Vou trabalhar dobrado.", 
-                      "Respeito sua opinião, mas vou dar a volta por cima.", 
-                      "Menos palavras, mais trabalho.", 
-                      "Calma, a temporada é longa.", 
-                      "👀",
-                      "No próximo jogo eu mostro meu valor."
-                  ];
-                  reply = replies[Math.floor(Math.random() * replies.length)];
-              } else if (lowerText.includes('?')) {
-                  const replies = [
-                      "Foco total no próximo jogo.", 
-                      "Ainda não posso falar sobre isso.", 
-                      "O trabalho continua dia após dia.", 
-                      "Segredo de estado 😂",
-                      "Em breve novidades!"
-                  ];
-                  reply = replies[Math.floor(Math.random() * replies.length)];
-              } else {
-                   const replies = ["👊👊", "⚽🔥", "Valeu!", "Obrigado!", "Tamo junto!", "Salve!"];
-                  reply = replies[Math.floor(Math.random() * replies.length)];
-              }
-
-              const replyComment: SocialComment = {
-                  id: Math.random().toString(36).substr(2, 9),
-                  author: targetPost.authorName,
-                  text: reply
-              };
-
-              setSocialPosts(current => current.map(post => {
-                  if (post.id === postId) {
-                      return {
-                          ...post,
-                          comments: [...post.comments, replyComment]
-                      };
-                  }
-                  return post;
-              }));
-
-          }, 1500 + Math.random() * 2000); // 1.5s to 3.5s delay for realism
+  const handleBuyPlayer = (player: Player) => {
+      if (budget >= player.value) {
+          setBudget(b => b - player.value);
+          setSquad(s => [...s, { ...player, team: userTeam?.name }]);
+          setMarket(m => m.filter(p => p.id !== player.id));
+          addTransaction('buy', `Compra de ${player.name}`, -player.value);
+          alert(`${player.name} contratado!`);
+      } else {
+          alert("Fundos insuficientes!");
       }
   };
 
-  const generatePostMatchSocial = () => {
-      // Add 3 new posts after match
-      const newPosts = generateSocialFeed().slice(0, 3); 
-      setSocialPosts(prev => [...newPosts, ...prev]);
+  const handleSellPlayer = (player: Player) => {
+      const sellValue = player.value * 0.8; // Sell for slightly less
+      setBudget(b => b + sellValue);
+      setSquad(s => s.filter(p => p.id !== player.id));
+      addTransaction('sell', `Venda de ${player.name}`, sellValue);
+      alert(`${player.name} vendido por $${sellValue.toFixed(1)}M!`);
   };
 
-
-  // --- View Renderers ---
-
-  const renderCareerIntro = () => (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-          {/* Background Ambience */}
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-800 via-slate-900 to-black"></div>
-          
-          <div className="relative z-10 w-full max-w-5xl flex flex-col md:flex-row gap-8 items-center">
-              
-              {/* Left: Dynamic Player Card (FUT Style) */}
-              <div className="hidden md:flex flex-col items-center animate-in slide-in-from-left duration-700">
-                   <div className="w-72 h-[26rem] bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 rounded-t-3xl rounded-b-[3rem] border-4 border-yellow-100 shadow-2xl relative overflow-hidden flex flex-col">
-                        {/* Card Content */}
-                        <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-                        
-                        <div className="p-5 pt-8 flex flex-col h-full relative z-10 text-amber-950">
-                            <div className="flex justify-between items-start">
-                                <div className="flex flex-col items-center">
-                                    <span className="text-4xl font-black leading-none">60</span>
-                                    <span className="text-lg font-bold uppercase">{careerTempPos === Position.GK ? 'GOL' : careerTempPos === Position.DEF ? 'DEF' : careerTempPos === Position.MID ? 'MEI' : 'ATA'}</span>
-                                </div>
-                                <div className="w-8 h-5 bg-blue-700 rounded-sm border border-white opacity-80"></div> {/* Brazil Flag simplified */}
-                            </div>
-
-                            <div className="flex-1 flex items-center justify-center">
-                                <User size={110} className="text-amber-900/80 drop-shadow-md" />
-                            </div>
-
-                            <div className="text-center pb-4">
-                                <h2 className="text-2xl font-black uppercase tracking-tighter truncate mb-1">
-                                    {careerTempName || "JOGADOR"}
-                                </h2>
-                                <div className="w-full h-0.5 bg-amber-900/30 mb-2"></div>
-                                <div className="flex justify-center gap-3 text-xs font-black opacity-75">
-                                     <span>PAC 65</span>
-                                     <span>SHO 60</span>
-                                     <span>PAS 62</span>
-                                     <span>DRI 64</span>
-                                </div>
-                            </div>
-                        </div>
-                   </div>
-                   <div className="mt-6 text-center">
-                       <p className="text-slate-400 text-sm uppercase tracking-widest font-bold">Sua Carta de Estreia</p>
-                   </div>
-              </div>
-
-              {/* Right: Creation Form */}
-              <div className="flex-1 w-full max-w-lg">
-                  <div className="mb-6 flex items-center">
-                      <button 
-                          onClick={() => setView(userTeam ? 'dashboard' : 'select-team')}
-                          className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
-                      >
-                          <ArrowLeft size={20} />
-                          <span className="font-bold">Voltar</span>
-                      </button>
-                  </div>
-
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl">
-                      {!careerOffers.length ? (
-                          <>
-                              <div className="mb-8">
-                                  <h2 className="text-3xl font-bold text-white mb-2">Crie sua Lenda</h2>
-                                  <p className="text-slate-400">Defina sua identidade antes da peneira.</p>
-                              </div>
-
-                              <div className="space-y-6">
-                                  <div>
-                                      <label className="block text-xs font-bold text-emerald-400 uppercase mb-2">Nome do Craque</label>
-                                      <input 
-                                          type="text" 
-                                          className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-bold text-lg"
-                                          placeholder="Como serás chamado?"
-                                          value={careerTempName}
-                                          onChange={e => setCareerTempName(e.target.value)}
-                                      />
-                                  </div>
-
-                                  <div>
-                                      <label className="block text-xs font-bold text-emerald-400 uppercase mb-2">Posição Preferida</label>
-                                      <div className="grid grid-cols-2 gap-3">
-                                          {[
-                                              { id: Position.ATT, label: 'Atacante', icon: Target },
-                                              { id: Position.MID, label: 'Meio-Campo', icon: Activity },
-                                              { id: Position.DEF, label: 'Defensor', icon: Shield },
-                                              { id: Position.GK, label: 'Goleiro', icon: Handshake }
-                                          ].map((pos) => (
-                                              <button
-                                                  key={pos.id}
-                                                  onClick={() => setCareerTempPos(pos.id)}
-                                                  className={`p-3 rounded-xl border transition-all flex items-center gap-3 ${careerTempPos === pos.id ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-900/50' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
-                                              >
-                                                  <pos.icon size={20} />
-                                                  <span className="font-bold text-sm">{pos.label}</span>
-                                              </button>
-                                          ))}
-                                      </div>
-                                  </div>
-
-                                  <button 
-                                      onClick={handlePlayAmateurMatch}
-                                      disabled={loading}
-                                      className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-bold hover:from-emerald-400 hover:to-teal-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 mt-4 group"
-                                  >
-                                      {loading ? (
-                                          <>
-                                              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-                                              <span>Jogando Peneira...</span>
-                                          </>
-                                      ) : (
-                                          <>
-                                              <span>Entrar em Campo</span>
-                                              <PlayCircle size={20} className="group-hover:scale-110 transition-transform" />
-                                          </>
-                                      )}
-                                  </button>
-                              </div>
-                          </>
-                      ) : (
-                          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                              <div className="text-center mb-6">
-                                  <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/30">
-                                      <CheckCircle size={32} className="text-white" />
-                                  </div>
-                                  <h3 className="text-2xl font-bold text-white">Aprovado na Peneira!</h3>
-                                  <p className="text-slate-400 mt-1">Esses clubes querem assinar com você.</p>
-                              </div>
-                              
-                              <div className="space-y-3">
-                                  {careerOffers.map((offer, idx) => (
-                                      <button
-                                          key={idx}
-                                          onClick={() => handleSelectOffer(offer)}
-                                          className={`w-full p-4 rounded-xl border-l-4 hover:translate-x-1 transition-all flex items-center justify-between group bg-white hover:bg-slate-50 border-transparent hover:border-l-emerald-500`}
-                                      >
-                                          <div className="flex items-center gap-4">
-                                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm ${offer.color}`}>
-                                                  {offer.name.substring(0, 2)}
-                                              </div>
-                                              <span className="text-lg font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">{offer.name}</span>
-                                          </div>
-                                          <div className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded uppercase">
-                                              Contrato
-                                          </div>
-                                      </button>
-                                  ))}
-                              </div>
-                          </div>
-                      )}
-                  </div>
-              </div>
-          </div>
-      </div>
-  );
-
-  const renderCareerHub = () => {
-      if (!careerData) return null;
-
-      // Filter Trophies
-      const filteredTrophies = trophyFilterSeason === 'all' 
-          ? careerData.trophies 
-          : careerData.trophies.filter(t => t.season === trophyFilterSeason);
+  // --- Match Simulation Logic ---
+  
+  const startMatch = async () => {
+      const opponents = leagueTable.filter(t => t.id !== userTeam?.id);
+      const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
+      const opponentTeam: Team = { id: randomOpponent.id, name: randomOpponent.name, primaryColor: 'bg-slate-600', secondaryColor: 'text-white' };
       
-      // Get unique seasons for filter
-      const seasons = Array.from(new Set(careerData.trophies.map(t => t.season))).sort((a: number, b: number) => b - a);
+      setCurrentOpponent(opponentTeam);
+      setPreparingVisualMatch(true);
+      
+      // Use Gemini to generate result
+      const result = await simulateMatchWithGemini(userTeam!, squad, opponentTeam);
+      setMatchEvents(result.events);
+      
+      // Prep Visuals
+      setPreparingVisualMatch(false);
+      setIsVisualMatch(true);
+      setSimTime(0);
+      setCurrentScore({ home: 0, away: 0 });
+      setLastEventIndex(-1);
+      
+      // Simple loops for visual positioning
+      setHomePlayerPos(Array(10).fill(0).map(() => ({ x: 30 + Math.random() * 20, y: 10 + Math.random() * 80 })));
+      setAwayPlayerPos(Array(10).fill(0).map(() => ({ x: 60 + Math.random() * 20, y: 10 + Math.random() * 80 })));
 
-      return (
-          <div className="p-4 md:p-8 pb-24 space-y-6 bg-slate-50 min-h-screen">
-              {/* Header Profile */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-6">
-                  <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg ${careerData.teamColor}`}>
-                      {careerData.teamName.substring(0, 2)}
-                  </div>
-                  <div className="text-center md:text-left flex-1">
-                      <h2 className="text-2xl font-bold text-slate-800">{careerData.playerName}</h2>
-                      <p className="text-slate-500 font-medium">{careerData.teamName} • {careerData.position}</p>
-                      <div className="flex items-center justify-center md:justify-start gap-4 mt-3">
-                          <div className="flex items-center gap-1 bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-bold">
-                              <Star size={16} fill="currentColor" />
-                              {careerData.rating} OVR
-                          </div>
-                          <div className="flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">
-                              R$ {careerData.cash.toLocaleString()}
-                          </div>
-                      </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 text-center w-full md:w-auto">
-                      <div>
-                          <p className="text-xs text-slate-500 uppercase font-bold">Jogos</p>
-                          <p className="text-xl font-bold text-slate-800">{careerData.matchesPlayed}</p>
-                      </div>
-                      <div>
-                          <p className="text-xs text-slate-500 uppercase font-bold">Gols</p>
-                          <p className="text-xl font-bold text-slate-800">{careerData.goals}</p>
-                      </div>
-                      <div>
-                          <p className="text-xs text-slate-500 uppercase font-bold">Assist.</p>
-                          <p className="text-xl font-bold text-slate-800">{careerData.assists}</p>
-                      </div>
-                  </div>
-              </div>
+      // Animation Loop
+      const interval = setInterval(() => {
+          setSimTime(t => {
+              if (t >= 90) {
+                  clearInterval(interval);
+                  setIsVisualMatch(false);
+                  updateLeagueTable(result);
+                  // Post match social
+                  const newPosts = generateSocialFeed().slice(0, 3);
+                  setSocialPosts(prev => [...newPosts, ...prev]);
+                  return 90;
+              }
+              return t + 1;
+          });
 
-              {/* Main Actions Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <button 
-                      onClick={handleSimulateWeek}
-                      disabled={loading}
-                      className="p-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-between"
-                   >
-                       <div>
-                           <p className="text-indigo-200 font-medium mb-1">Próxima Partida</p>
-                           <h3 className="text-2xl font-bold">Jogar Semana {careerData.matchesPlayed + 1}</h3>
-                       </div>
-                       <div className="p-3 bg-white/20 rounded-full backdrop-blur-sm">
-                           {loading ? <div className="animate-spin h-8 w-8 border-2 border-white border-t-transparent rounded-full" /> : <PlayCircle size={32} />}
-                       </div>
-                   </button>
+          // Move players randomly for visual effect
+          setHomePlayerPos(prev => prev.map(p => ({
+              x: Math.min(90, Math.max(10, p.x + (Math.random() - 0.5) * 5)),
+              y: Math.min(90, Math.max(10, p.y + (Math.random() - 0.5) * 5))
+          })));
+          setAwayPlayerPos(prev => prev.map(p => ({
+               x: Math.min(90, Math.max(10, p.x + (Math.random() - 0.5) * 5)),
+               y: Math.min(90, Math.max(10, p.y + (Math.random() - 0.5) * 5))
+          })));
+          setBallPosition({ x: 50 + (Math.random() - 0.5) * 60, y: 50 + (Math.random() - 0.5) * 60 });
 
-                   <div className="grid grid-cols-2 gap-4">
-                       <button 
-                          onClick={() => setShowShop(true)}
-                          className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-emerald-500 hover:bg-emerald-50 transition-colors flex flex-col items-center justify-center gap-2 text-slate-700"
-                       >
-                           <ShoppingBag size={24} className="text-emerald-600" />
-                           <span className="font-bold">Loja</span>
-                       </button>
-                       <button 
-                          onClick={() => setShowCareerTrophies(true)}
-                          className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-amber-500 hover:bg-amber-50 transition-colors flex flex-col items-center justify-center gap-2 text-slate-700"
-                       >
-                           <Trophy size={24} className="text-amber-500" />
-                           <span className="font-bold">Conquistas</span>
-                       </button>
-                   </div>
-              </div>
+      }, 150); // Fast simulation
 
-              {/* Feed / History */}
-              <Card title="Histórico da Temporada">
-                  <div className="space-y-3 max-h-60 overflow-y-auto">
-                      {[...careerData.history].reverse().map((log, i) => (
-                          <div key={i} className="p-3 bg-slate-50 rounded-lg text-sm text-slate-700 border-l-4 border-emerald-500">
-                              {log}
-                          </div>
-                      ))}
-                      {careerData.history.length === 0 && (
-                          <p className="text-slate-400 text-center py-4">Nenhum jogo disputado ainda.</p>
-                      )}
-                  </div>
-              </Card>
-              
-              {/* Transfer Offers Notification */}
-              {careerTransferOffers.length > 0 && (
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between animate-pulse">
-                      <div className="flex items-center gap-3">
-                          <Briefcase className="text-blue-600" />
-                          <div>
-                              <p className="font-bold text-blue-800">Proposta de Transferência!</p>
-                              <p className="text-xs text-blue-600">{careerTransferOffers.length} clubes interessados.</p>
-                          </div>
-                      </div>
-                      <button 
-                          onClick={() => setShowContract(true)}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700"
-                      >
-                          Ver
-                      </button>
-                  </div>
-              )}
-
-              {/* Exit Button */}
-              <div className="flex justify-center mt-8">
-                  <button 
-                      onClick={() => setView(userTeam ? 'dashboard' : 'select-team')}
-                      className="px-6 py-3 text-red-500 hover:bg-red-50 rounded-xl font-bold transition-colors flex items-center gap-2"
-                  >
-                      <ArrowLeft size={20} />
-                      Sair do Modo Carreira
-                  </button>
-              </div>
-
-              {/* Modals */}
-              {showShop && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-                          <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                              <h3 className="font-bold text-lg">Loja de Estilo de Vida</h3>
-                              <button onClick={() => setShowShop(false)}><X size={20} /></button>
-                          </div>
-                          <div className="p-4 overflow-y-auto space-y-3">
-                              <div className="text-center mb-4 bg-green-50 p-2 rounded-lg border border-green-100">
-                                  <p className="text-xs text-green-800 font-bold uppercase">Seu Saldo</p>
-                                  <p className="text-xl font-bold text-green-600">R$ {careerData.cash.toLocaleString()}</p>
-                              </div>
-                              {shopItems.map(item => {
-                                  const owned = careerData.inventory.includes(item.id);
-                                  return (
-                                      <div key={item.id} className="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50">
-                                          <div className="flex items-center gap-3">
-                                              <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
-                                                  {item.icon}
-                                              </div>
-                                              <div>
-                                                  <p className="font-bold text-sm">{item.name}</p>
-                                                  <p className="text-xs text-slate-500">R$ {item.price.toLocaleString()}</p>
-                                              </div>
-                                          </div>
-                                          <button 
-                                              disabled={owned || careerData.cash < item.price}
-                                              onClick={() => {
-                                                  setCareerData(prev => prev ? ({
-                                                      ...prev,
-                                                      cash: prev.cash - item.price,
-                                                      inventory: [...prev.inventory, item.id]
-                                                  }) : null)
-                                              }}
-                                              className={`px-3 py-1.5 rounded-lg text-xs font-bold ${owned ? 'bg-slate-200 text-slate-500' : careerData.cash >= item.price ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}
-                                          >
-                                              {owned ? 'Comprado' : 'Comprar'}
-                                          </button>
-                                      </div>
-                                  )
-                              })}
-                          </div>
-                      </div>
-                  </div>
-              )}
-
-              {/* Contract Modal */}
-              {showContract && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                       <div className="bg-white rounded-2xl w-full max-w-md p-6 text-center">
-                           <h3 className="text-2xl font-bold mb-4">Propostas Recebidas</h3>
-                           <div className="space-y-3 mb-6">
-                               {careerTransferOffers.map((offer, idx) => (
-                                   <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
-                                       <div className="flex items-center gap-3">
-                                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${offer.color}`}>
-                                               {offer.name.substring(0,2)}
-                                           </div>
-                                           <span className="font-bold text-slate-700">{offer.name}</span>
-                                       </div>
-                                       <button 
-                                           onClick={() => {
-                                               setCareerData(prev => prev ? ({...prev, teamName: offer.name, teamColor: offer.color}) : null);
-                                               setCareerTransferOffers(prev => prev.filter((_, i) => i !== idx));
-                                               setShowContract(false);
-                                           }}
-                                           className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded font-bold"
-                                       >
-                                           Aceitar
-                                       </button>
-                                   </div>
-                               ))}
-                           </div>
-                           <button onClick={() => setShowContract(false)} className="text-slate-500 font-bold">Fechar</button>
-                       </div>
-                  </div>
-              )}
-
-              {/* Trophies Modal */}
-              {showCareerTrophies && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
-                           <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                               <div className="flex items-center gap-2">
-                                   <Trophy className="text-amber-500" size={20} />
-                                   <h3 className="font-bold text-lg">Sala de Troféus</h3>
-                               </div>
-                               <button onClick={() => setShowCareerTrophies(false)}><X size={20} /></button>
-                           </div>
-
-                           {/* Filter */}
-                           {seasons.length > 0 && (
-                               <div className="px-4 py-2 bg-slate-50 border-b flex items-center gap-2 overflow-x-auto no-scrollbar">
-                                   <Filter size={14} className="text-slate-400 flex-shrink-0" />
-                                   <button 
-                                       onClick={() => setTrophyFilterSeason('all')}
-                                       className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition-colors ${trophyFilterSeason === 'all' ? 'bg-emerald-600 text-white font-bold' : 'bg-white border text-slate-600'}`}
-                                   >
-                                       Tudo
-                                   </button>
-                                   {seasons.map(s => (
-                                       <button
-                                           key={s}
-                                           onClick={() => setTrophyFilterSeason(s)}
-                                           className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition-colors ${trophyFilterSeason === s ? 'bg-emerald-600 text-white font-bold' : 'bg-white border text-slate-600'}`}
-                                       >
-                                           Temp {s}
-                                       </button>
-                                   ))}
-                               </div>
-                           )}
-
-                           <div className="p-6 overflow-y-auto text-center space-y-4">
-                               {filteredTrophies.length === 0 ? (
-                                   <div className="py-8">
-                                       <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300">
-                                           <Trophy size={32} />
-                                       </div>
-                                       <p className="text-slate-500">
-                                           {trophyFilterSeason !== 'all' 
-                                              ? `Nenhum troféu na Temporada ${trophyFilterSeason}.`
-                                              : "Ainda não conquistou troféus."}
-                                       </p>
-                                   </div>
-                               ) : (
-                                   <div className="grid gap-3">
-                                       {filteredTrophies.map((trophy, i) => (
-                                           <div key={i} className="flex items-start gap-4 p-3 bg-amber-50 border border-amber-100 rounded-xl text-left">
-                                               <div className="p-2 bg-white rounded-full shadow-sm text-amber-500">
-                                                   <Crown size={20} />
-                                               </div>
-                                               <div>
-                                                   <h4 className="font-bold text-amber-900 text-sm">{trophy.name}</h4>
-                                                   <p className="text-amber-700/80 text-xs leading-tight mt-1">{trophy.description}</p>
-                                                   <span className="inline-block mt-1.5 text-[10px] font-bold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">
-                                                       Temp {trophy.season}
-                                                   </span>
-                                               </div>
-                                           </div>
-                                       ))}
-                                   </div>
-                               )}
-                           </div>
-                      </div>
-                  </div>
-              )}
-          </div>
-      );
+      // Events Check
+      const eventInterval = setInterval(() => {
+          setSimTime(currentTime => {
+              const event = result.events.find(e => e.minute === currentTime);
+              if (event) {
+                  if (event.type === 'goal') {
+                      if (event.team === 'home') setCurrentScore(s => ({...s, home: s.home + 1}));
+                      else setCurrentScore(s => ({...s, away: s.away + 1}));
+                      setBallPosition({ x: 50, y: 50 }); // Reset ball visual
+                  }
+              }
+              return currentTime;
+          })
+      }, 150);
   };
 
-  // --- Dedicated Social Feed View ---
-  const renderSocial = () => (
-      <div className="p-4 md:p-8 pb-24 max-w-3xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-              <h2 className="text-3xl font-bold text-slate-800">Rede Social</h2>
-              <div className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">Ao Vivo</div>
-          </div>
+  const handleTacticChange = (type: string, value: string) => {
+      setTactics(prev => ({...prev, [type]: value}));
+      setTacticalFeedback(`${type === 'formation' ? 'Formação' : type === 'style' ? 'Estilo' : 'Intensidade'} alterada para: ${value}!`);
+      setTimeout(() => setTacticalFeedback(''), 3000);
+  };
 
-          <div className="space-y-4">
-              {socialPosts.map(post => (
-                  <Card key={post.id} className="hover:bg-slate-50 transition-colors border-none shadow-md">
-                      <div className="flex items-start gap-3">
-                          <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-white text-lg ${post.teamName ? 'bg-indigo-600' : 'bg-slate-400'}`}>
-                              {post.authorName.charAt(0)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-start">
-                                  <div>
-                                      <p className="font-bold text-slate-900">{post.authorName}</p>
-                                      <p className="text-xs text-slate-500">@{post.authorName.toLowerCase().replace(/\s/g, '')} • {post.timeAgo}</p>
-                                  </div>
-                                  <button className="text-slate-400 hover:text-slate-600">
-                                      <MoveRight size={16} className="rotate-45" />
-                                  </button>
-                              </div>
-                              
-                              {/* Content - Text replaces Image prominence */}
-                              <p className="text-lg md:text-xl text-slate-800 mt-3 mb-4 leading-relaxed font-medium">
-                                  {post.content}
-                              </p>
-                              
-                              {/* Action Bar */}
-                              <div className="flex items-center justify-between text-slate-500 text-sm border-t border-slate-100 pt-3">
-                                   <button 
-                                      onClick={() => handleLike(post.id)}
-                                      className={`flex items-center gap-2 hover:text-red-500 transition-colors group ${post.isLiked ? 'text-red-500' : ''}`}
-                                   >
-                                       <div className="p-2 rounded-full group-hover:bg-red-50 transition-colors">
-                                           <Heart size={18} className={post.isLiked ? "fill-current" : ""} />
-                                       </div>
-                                       <span className="font-bold">{post.likes}</span>
-                                   </button>
-                                   <button className="flex items-center gap-2 hover:text-blue-500 transition-colors group">
-                                       <div className="p-2 rounded-full group-hover:bg-blue-50 transition-colors">
-                                           <MessageCircle size={18} />
-                                       </div>
-                                       <span className="font-bold">{post.comments.length > 0 ? post.comments.length : 'Comentar'}</span>
-                                   </button>
-                              </div>
+  // --- Renderers ---
 
-                              {/* Comments Section */}
-                              <div className="mt-4 bg-slate-100 rounded-lg p-3">
-                                  {post.comments.length > 0 && (
-                                      <div className="space-y-2 mb-3">
-                                          {post.comments.map((comment, i) => (
-                                              <div key={i} className="text-sm">
-                                                  <span className="font-bold text-slate-700 mr-2">{comment.author}:</span>
-                                                  <span className="text-slate-600">{comment.text}</span>
-                                              </div>
-                                          ))}
-                                      </div>
-                                  )}
-                                  
-                                  <div className="flex items-center gap-2">
-                                      <input 
-                                          type="text" 
-                                          placeholder="Escreva um comentário..."
-                                          className="flex-1 bg-white border-slate-300 rounded-full px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                                          value={commentText[post.id] || ''}
-                                          onChange={(e) => setCommentText({...commentText, [post.id]: e.target.value})}
-                                          onKeyPress={(e) => e.key === 'Enter' && handleComment(post.id)}
-                                      />
-                                      <button 
-                                          onClick={() => handleComment(post.id)}
-                                          className="p-1.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-700"
-                                      >
-                                          <Send size={14} />
-                                      </button>
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-                  </Card>
-              ))}
-          </div>
-      </div>
-  );
-
-  // --- Dashboard (Clean Layout) ---
   const renderDashboard = () => (
     <div className="p-4 md:p-8 space-y-6 pb-24 lg:pb-8">
       <header className="flex justify-between items-center">
@@ -1307,16 +585,13 @@ export default function App() {
           <p className="text-slate-500">Bem-vindo ao {userTeam?.name}</p>
         </div>
         <div className="flex items-center gap-4">
-            {/* Botão Pular Semana */}
             <button 
                 onClick={handleSkipWeek}
                 className="flex items-center gap-2 bg-amber-100 text-amber-800 px-4 py-2 rounded-lg font-bold hover:bg-amber-200 transition-colors border border-amber-200"
-                title="Avança 1 semana e reduz contratos do elenco"
             >
                 <CalendarClock size={20} />
                 <span className="hidden md:inline">Pular Semana</span>
             </button>
-
             <div className="text-right hidden md:block">
                 <p className="text-sm text-slate-500 font-bold uppercase">Temporada 1</p>
                 <p className="text-xs text-slate-400">Semana {week}</p>
@@ -1325,84 +600,38 @@ export default function App() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Main Action Buttons Grid */}
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-             
-             {/* 1. Jogo */}
-             <button 
-                onClick={() => setView('match')}
-                className="p-6 bg-slate-900 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px] group hover:scale-[1.02] transition-transform border border-slate-800 relative overflow-hidden"
-             >
+             <button onClick={() => setView('match')} className="p-6 bg-slate-900 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px] group hover:scale-[1.02] transition-transform border border-slate-800 relative overflow-hidden">
                  <div className="absolute top-0 right-0 p-32 bg-slate-800/50 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                 <div className="flex justify-between items-start relative z-10">
-                     <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm">
-                         <MonitorPlay size={32} className="text-emerald-400" />
-                     </div>
-                 </div>
-                 <div className="relative z-10 text-left">
+                 <div className="relative z-10"><MonitorPlay size={32} className="text-emerald-400" /></div>
+                 <div className="relative z-10 text-left mt-4">
                      <p className="text-slate-400 text-sm font-medium mb-1">Próximo Desafio</p>
                      <h3 className="text-2xl font-bold">Ir para o Jogo</h3>
                  </div>
              </button>
 
-             {/* 2. Rumo ao Estrelato */}
-             <button 
-                onClick={() => setView(careerData ? 'career-hub' : 'career-intro')}
-                className="p-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px] group hover:scale-[1.02] transition-transform relative overflow-hidden"
-             >
+             <button onClick={() => setView(careerData ? 'career-hub' : 'career-intro')} className="p-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px] group hover:scale-[1.02] transition-transform relative overflow-hidden">
                  <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                 <div className="flex justify-between items-start relative z-10">
-                     <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                         <Star size={32} className="text-yellow-300 fill-yellow-300" />
-                     </div>
-                 </div>
-                 <div className="relative z-10 text-left">
+                 <div className="relative z-10"><Star size={32} className="text-yellow-300 fill-yellow-300" /></div>
+                 <div className="relative z-10 text-left mt-4">
                      <p className="text-indigo-200 text-sm font-medium mb-1">Modo Carreira</p>
                      <h3 className="text-2xl font-bold">Rumo ao Estrelato</h3>
                  </div>
              </button>
 
-             {/* 3. Rede Social */}
-             <button 
-                onClick={() => setView('social')}
-                className="p-6 bg-blue-600 text-white rounded-2xl shadow-lg hover:bg-blue-700 transition-colors flex flex-col justify-between min-h-[160px] relative overflow-hidden"
-             >
+             <button onClick={() => setShowFinances(true)} className="p-6 bg-emerald-600 text-white rounded-2xl shadow-lg hover:bg-emerald-700 transition-colors flex flex-col justify-between min-h-[160px] relative overflow-hidden">
                  <div className="absolute bottom-0 left-0 p-24 bg-white/10 rounded-full blur-2xl -ml-12 -mb-12 pointer-events-none"></div>
-                 <div className="flex justify-between items-start relative z-10">
-                     <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                         <MessageCircle size={28} />
-                     </div>
-                 </div>
-                 <div className="relative z-10 text-left">
-                     <p className="text-blue-100 text-sm font-medium mb-1">Interação</p>
-                     <h3 className="text-xl font-bold">Rede Social</h3>
+                 <div className="relative z-10"><Wallet size={28} /></div>
+                 <div className="relative z-10 text-left mt-4">
+                     <p className="text-emerald-100 text-sm font-medium mb-1">Gestão</p>
+                     <h3 className="text-xl font-bold">Finanças</h3>
+                     <p className="text-xs font-bold mt-1 bg-emerald-800/50 inline-block px-2 py-0.5 rounded">$ {budget.toFixed(1)}M</p>
                  </div>
              </button>
 
-             {/* 4. Elenco */}
-             <button 
-                onClick={() => setView('squad')}
-                className="p-6 bg-white text-slate-800 border border-slate-200 rounded-2xl shadow-sm hover:border-emerald-500 transition-colors flex flex-col justify-between min-h-[160px]"
-             >
-                 <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl w-fit">
-                     <Users size={28} />
-                 </div>
-                 <div className="text-left">
-                     <p className="text-slate-500 text-sm font-medium mb-1">Gestão</p>
-                     <h3 className="text-xl font-bold">Seu Elenco</h3>
-                     <p className="text-xs text-emerald-600 font-bold mt-1">{squad.length} Jogadores</p>
-                 </div>
-             </button>
-
-             {/* 5. Sala de Troféus */}
-             <button 
-                onClick={() => setView('trophies')}
-                className="p-6 bg-gradient-to-br from-amber-100 to-amber-50 text-amber-900 border border-amber-200 rounded-2xl shadow-sm hover:border-amber-500 transition-colors flex flex-col justify-between min-h-[160px] relative overflow-hidden sm:col-span-2 lg:col-span-1"
-             >
-                 <div className="p-3 bg-white/60 text-amber-600 rounded-xl w-fit backdrop-blur-sm">
-                     <Award size={28} />
-                 </div>
-                 <div className="text-left relative z-10">
+             <button onClick={() => setView('trophies')} className="p-6 bg-gradient-to-br from-amber-100 to-amber-50 text-amber-900 border border-amber-200 rounded-2xl shadow-sm hover:border-amber-500 transition-colors flex flex-col justify-between min-h-[160px] relative overflow-hidden">
+                 <div className="p-3 bg-white/60 text-amber-600 rounded-xl w-fit backdrop-blur-sm"><Award size={28} /></div>
+                 <div className="text-left relative z-10 mt-4">
                      <p className="text-amber-700 text-sm font-medium mb-1">Conquistas</p>
                      <h3 className="text-xl font-bold">Sala de Troféus</h3>
                      <p className="text-xs text-amber-600 font-bold mt-1">{trophies.length} Taças</p>
@@ -1411,27 +640,16 @@ export default function App() {
              </button>
         </div>
 
-        {/* Side Column - Highlights, Table, Market, Renewals */}
         <div className="space-y-6">
-             
-             {/* Tabela Resumida (Novo) */}
              <Card title="Classificação - Série A" action={<button onClick={() => setView('standings')} className="text-xs text-blue-600 font-bold">Ver Tudo</button>}>
                  <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="text-slate-400 border-b text-[10px] uppercase">
-                            <tr>
-                                <th className="pb-2 pl-1">Pos</th>
-                                <th className="pb-2">Time</th>
-                                <th className="pb-2 text-center">Pts</th>
-                            </tr>
+                            <tr><th className="pb-2 pl-1">Pos</th><th className="pb-2">Time</th><th className="pb-2 text-center">Pts</th></tr>
                         </thead>
                         <tbody className="text-slate-700">
-                            {[...leagueTable]
-                                .sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga))
-                                .map((t, i) => ({...t, rank: i + 1}))
-                                .filter((t, i) => i < 4 || t.id === userTeam?.id) // Show Top 4 + User
-                                .slice(0, 5) // Limit to 5 rows max
-                                .map((team, idx) => (
+                            {[...leagueTable].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga))
+                                .map((t, i) => ({...t, rank: i + 1})).slice(0, 5).map((team) => (
                                 <tr key={team.id} className={`border-b last:border-0 ${team.id === userTeam?.id ? 'bg-emerald-50 font-bold' : ''}`}>
                                     <td className="py-2 pl-2 w-8">{team.rank}º</td>
                                     <td className="py-2 truncate max-w-[100px]">{team.name}</td>
@@ -1443,831 +661,381 @@ export default function App() {
                  </div>
              </Card>
 
-             {/* Destaques */}
-             <Card title="Destaques do Elenco">
-                <div className="space-y-2">
-                    {squad.sort((a,b) => b.rating - a.rating).slice(0, 4).map(player => (
-                        <div key={player.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
-                             <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold text-slate-600 border border-slate-300">
-                                {player.rating}
-                             </div>
-                             <div className="min-w-0">
-                                <p className="text-sm font-bold truncate text-slate-800">{player.name}</p>
-                                <p className="text-xs text-slate-500 font-medium">{player.position}</p>
-                             </div>
-                        </div>
-                    ))}
-                </div>
-             </Card>
-
-             {/* Link Mercado */}
-             <button 
-                onClick={() => setView('market')}
-                className="w-full p-4 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-between group"
-             >
+             <button onClick={() => setView('market')} className="w-full p-4 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-between group">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
-                        <DollarSign size={24} />
-                    </div>
-                    <div className="text-left">
-                        <p className="font-bold">Mercado</p>
-                        <p className="text-slate-400 text-xs">Contratar reforços</p>
-                    </div>
+                    <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors"><DollarSign size={24} /></div>
+                    <div className="text-left"><p className="font-bold">Mercado</p><p className="text-slate-400 text-xs">Contratar reforços</p></div>
                 </div>
                 <MoveRight size={16} className="text-slate-400 group-hover:text-emerald-600 transition-colors" />
              </button>
-
-             {/* Renovações Recentes */}
-             <Card title="Últimas Renovações" className="border-l-4 border-l-blue-500">
-                 <div className="space-y-3 max-h-40 overflow-y-auto">
-                     {renewedLog.length === 0 ? (
-                         <p className="text-xs text-slate-400 py-2">Nenhuma renovação recente.</p>
-                     ) : (
-                         renewedLog.slice(0, 5).map((log, i) => (
-                             <div key={i} className="flex items-center justify-between text-sm p-2 bg-slate-50 rounded">
-                                 <span className="font-bold text-slate-700 truncate">{log.playerName}</span>
-                                 <div className="flex items-center gap-1 text-blue-600 font-bold text-xs">
-                                     <FileText size={12} />
-                                     <span>{log.weeks} sem.</span>
-                                 </div>
-                             </div>
-                         ))
-                     )}
-                 </div>
-             </Card>
         </div>
       </div>
+
+      {showFinances && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-200">
+                   <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                       <div className="flex items-center gap-2"><BarChart3 className="text-emerald-600" size={24} /><h3 className="font-bold text-lg text-slate-800">Departamento Financeiro</h3></div>
+                       <button onClick={() => setShowFinances(false)}><X size={20} /></button>
+                   </div>
+                   <div className="p-6 overflow-y-auto">
+                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                           <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-center">
+                               <p className="text-xs font-bold text-emerald-800 uppercase">Saldo Atual</p>
+                               <p className="text-2xl font-black text-emerald-600">$ {budget.toFixed(1)}M</p>
+                           </div>
+                           <div className="bg-red-50 p-4 rounded-xl border border-red-100 text-center">
+                               <p className="text-xs font-bold text-red-800 uppercase">Despesa Contratações</p>
+                               <p className="text-xl font-bold text-red-600">$ {Math.abs(transactions.filter(t => t.type === 'buy').reduce((acc, t) => acc + t.amount, 0)).toFixed(1)}M</p>
+                           </div>
+                           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
+                               <p className="text-xs font-bold text-blue-800 uppercase">Receita Vendas</p>
+                               <p className="text-xl font-bold text-blue-600">$ {transactions.filter(t => t.type === 'sell').reduce((acc, t) => acc + t.amount, 0).toFixed(1)}M</p>
+                           </div>
+                       </div>
+                       <h4 className="font-bold text-slate-700 mb-3">Histórico de Transações</h4>
+                       <div className="space-y-2">
+                           {transactions.length === 0 ? <p className="text-slate-400 text-center py-4">Nenhuma movimentação registrada.</p> : transactions.map(t => (
+                               <div key={t.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                   <div><p className="font-bold text-slate-800 text-sm">{t.description}</p><p className="text-xs text-slate-400">Semana {t.week}</p></div>
+                                   <span className={`font-bold ${t.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{t.amount >= 0 ? '+' : ''}{t.amount.toFixed(1)}M</span>
+                               </div>
+                           ))}
+                       </div>
+                   </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 
-  const renderSquad = () => (
-    <div className="p-4 md:p-8 pb-24">
-        <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-800">Gerenciar Elenco</h2>
-            <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200">
-                <span className="text-sm font-bold text-slate-500 uppercase mr-2">Valor Total</span>
-                <span className="font-bold text-emerald-600 text-lg">
-                    $ {squad.reduce((acc, p) => acc + p.value, 0).toFixed(1)}M
-                </span>
-            </div>
-        </div>
-
-        {/* Dica Visual de Contratos */}
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-            <Info className="text-blue-600 shrink-0 mt-0.5" size={20} />
-            <div>
-                <p className="text-sm text-blue-900 font-bold">Gestão de Contratos</p>
-                <p className="text-sm text-blue-700 mt-1">
-                    Se o botão <span className="font-bold text-amber-600 bg-amber-100 px-1 rounded border border-amber-200 mx-1">Renovar</span> estiver <span className="font-bold">piscando</span>, o contrato do jogador está prestes a encerrar (menos de 10 semanas).
-                </p>
-            </div>
-        </div>
-
-        <Card className="overflow-hidden">
-            <div className="max-h-[70vh] overflow-y-auto">
-                {squad.sort((a, b) => b.rating - a.rating).map((player) => (
-                    <PlayerRow 
-                        key={player.id} 
-                        player={player} 
-                        showPrice 
-                        onSell={(p) => setSellingPlayer(p)}
-                        onLoan={(p) => setLoaningPlayer(p)}
-                        onRenew={(p) => {
-                             // Simple renewal logic demo
-                             const cost = 2; // 2M cost
-                             if (budget >= cost) {
-                                 setBudget(prev => prev - cost);
-                                 const addedWeeks = 50;
-                                 setSquad(prev => prev.map(pl => pl.id === p.id ? {...pl, contractWeeks: pl.contractWeeks + addedWeeks} : pl));
-                                 
-                                 // Log Renewal for Dashboard
-                                 setRenewedLog(prev => [{playerName: p.name, weeks: p.contractWeeks + addedWeeks, weekRenewer: week}, ...prev]);
-
-                                 alert(`Contrato de ${p.name} renovado!`);
-                             } else {
-                                 alert("Orçamento insuficiente.");
-                             }
-                        }}
-                    />
-                ))}
-            </div>
-        </Card>
-
-        {/* Sell Modal */}
-        {sellingPlayer && (
-             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl">
-                    <h3 className="text-xl font-bold mb-2">Vender {sellingPlayer.name}?</h3>
-                    <p className="text-slate-600 mb-4">Valor de mercado: <span className="font-bold text-emerald-600">$ {sellingPlayer.value}M</span></p>
-                    
-                    {offers.length === 0 ? (
-                         <div className="text-center py-4">
-                             <p className="mb-4">Buscando interessados...</p>
-                             <button 
-                                onClick={() => {
-                                    // Mock offers
-                                    setOffers([
-                                        { team: generateFictionalTeamName(), value: parseFloat((sellingPlayer.value * 0.9).toFixed(1)) },
-                                        { team: generateFictionalTeamName(), value: parseFloat((sellingPlayer.value * 1.1).toFixed(1)) }
-                                    ]);
-                                }}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-lg w-full font-bold"
-                             >
-                                 Anunciar Jogador
-                             </button>
-                         </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {offers.map((offer, i) => (
-                                <div key={i} className="flex justify-between items-center p-3 bg-slate-50 rounded border">
-                                    <div>
-                                        <p className="font-bold text-sm">{offer.team}</p>
-                                        <p className="text-emerald-600 font-bold">$ {offer.value}M</p>
-                                    </div>
-                                    <button 
-                                        onClick={() => {
-                                            setBudget(b => b + offer.value);
-                                            setSquad(s => s.filter(p => p.id !== sellingPlayer.id));
-                                            setSellingPlayer(null);
-                                            setOffers([]);
-                                            alert(`Vendido para ${offer.team}!`);
-                                        }}
-                                        className="text-xs bg-green-600 text-white px-3 py-1.5 rounded"
-                                    >
-                                        Aceitar
-                                    </button>
+  const renderMatch = () => {
+      if (preparingVisualMatch || isVisualMatch) {
+          return (
+              <div className="min-h-screen bg-slate-900 p-4 flex flex-col items-center justify-center relative">
+                  <div className="w-full max-w-5xl">
+                      {/* Placar */}
+                      <div className="bg-slate-800 text-white p-4 rounded-t-2xl flex justify-between items-center border-b border-slate-700">
+                          <div className="flex items-center gap-4 w-1/3">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${userTeam?.primaryColor}`}>{userTeam?.name.substring(0,2)}</div>
+                              <span className="font-bold text-lg hidden md:inline">{userTeam?.name}</span>
+                          </div>
+                          <div className="text-3xl font-black font-mono bg-black/50 px-6 py-2 rounded-lg border border-white/10 shadow-inner">{currentScore.home} - {currentScore.away}</div>
+                          <div className="flex items-center gap-4 w-1/3 justify-end">
+                              <span className="font-bold text-lg hidden md:inline">{currentOpponent?.name}</span>
+                              <div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center font-bold text-white">{currentOpponent?.name.substring(0,2)}</div>
+                          </div>
+                      </div>
+                      
+                      <SoccerField homeTeam={userTeam!} awayTeam={currentOpponent!} gameTime={simTime} ballPos={ballPosition} homePositions={homePlayerPos} awayPositions={awayPlayerPos} />
+                      
+                      {/* Centro Tático (NOVO) */}
+                      <div className="mt-4 bg-slate-900 rounded-xl p-4 border-t-4 border-emerald-500 shadow-2xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                                <Activity className="text-emerald-400" />
+                                Centro de Comando Tático
+                            </h3>
+                            {tacticalFeedback && (
+                                <div className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-xs font-bold animate-pulse border border-emerald-500/50">
+                                    {tacticalFeedback}
                                 </div>
-                            ))}
+                            )}
                         </div>
-                    )}
-                    <button 
-                        onClick={() => { setSellingPlayer(null); setOffers([]); }}
-                        className="mt-4 text-slate-500 w-full py-2"
-                    >
-                        Cancelar
-                    </button>
-                </div>
-             </div>
-        )}
-        
-        {/* Loan OUT Modal */}
-        {loaningPlayer && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl">
-                    <h3 className="text-xl font-bold mb-2">Emprestar {loaningPlayer.name}</h3>
-                    <p className="text-slate-600 mb-4 text-sm">O clube interessado pagará 100% do salário.</p>
-                     
-                     {loanOffers.length === 0 ? (
-                         <div className="text-center py-4">
-                             <button 
-                                onClick={() => {
-                                    setLoanOffers([
-                                        { team: generateFictionalTeamName(), value: 0 },
-                                        { team: generateFictionalTeamName(), value: 0 }
-                                    ]);
-                                }}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-lg w-full font-bold"
-                             >
-                                 Buscar Interessados
-                             </button>
-                         </div>
-                     ) : (
-                         <div className="space-y-3">
-                            {loanOffers.map((offer, i) => (
-                                <div key={i} className="flex justify-between items-center p-3 bg-slate-50 rounded border">
-                                    <p className="font-bold text-sm">{offer.team}</p>
-                                    <button 
-                                        onClick={() => {
-                                            // Logic: remove from active squad list but maybe keep in a "loaned" list? 
-                                            // For simplicity, we just flag them in squad
-                                            setSquad(prev => prev.map(p => p.id === loaningPlayer.id ? { ...p, isLoaned: true, team: offer.team } : p));
-                                            setLoaningPlayer(null);
-                                            setLoanOffers([]);
-                                            alert(`Emprestado para ${offer.team} por 1 temporada.`);
-                                        }}
-                                        className="text-xs bg-green-600 text-white px-3 py-1.5 rounded"
-                                    >
-                                        Aceitar
-                                    </button>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Formação</label>
+                                <div className="flex flex-col gap-2">
+                                    {['4-3-3', '4-4-2', '3-5-2'].map(f => (
+                                        <button key={f} onClick={() => handleTacticChange('formation', f)} className={`p-2 rounded text-xs font-bold transition-all ${tactics.formation === f ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{f}</button>
+                                    ))}
                                 </div>
-                            ))}
-                         </div>
-                     )}
-                     <button 
-                        onClick={() => { setLoaningPlayer(null); setLoanOffers([]); }}
-                        className="mt-4 text-slate-500 w-full py-2"
-                    >
-                        Cancelar
-                    </button>
-                </div>
-            </div>
-        )}
-    </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Estilo</label>
+                                <div className="flex flex-col gap-2">
+                                    {['Tic-Taka', 'Contra-Ataque', 'Bola Longa'].map(s => (
+                                        <button key={s} onClick={() => handleTacticChange('style', s)} className={`p-2 rounded text-xs font-bold transition-all ${tactics.style === s ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{s}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Intensidade</label>
+                                <div className="flex flex-col gap-2">
+                                    {['Pressão Alta', 'Equilibrado', 'Recuar'].map(i => (
+                                        <button key={i} onClick={() => handleTacticChange('intensity', i)} className={`p-2 rounded text-xs font-bold transition-all ${tactics.intensity === i ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{i}</button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-3 text-center italic">Alterar táticas pode influenciar a moral e o posicionamento do time em tempo real.</p>
+                      </div>
+
+                      {/* Narracao */}
+                      <div className="mt-4 h-32 bg-black/40 rounded-lg p-4 overflow-y-auto font-mono text-sm text-emerald-400 border border-emerald-900/30">
+                          {matchEvents.filter(e => e.minute <= simTime).reverse().map((e, i) => (
+                              <div key={i} className="mb-1"><span className="text-slate-500 mr-2">{e.minute}'</span> {e.description}</div>
+                          ))}
+                      </div>
+                  </div>
+              </div>
+          )
+      }
+
+      return (
+          <div className="p-4 md:p-8 flex flex-col items-center justify-center min-h-[80vh]">
+              <div className="max-w-md w-full text-center space-y-6">
+                  <div className="w-24 h-24 bg-slate-200 rounded-full mx-auto flex items-center justify-center text-4xl mb-4 shadow-lg">⚽</div>
+                  <h2 className="text-3xl font-bold text-slate-800">Dia de Jogo!</h2>
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                      <p className="text-slate-500 font-bold uppercase text-sm mb-4">Próximo Adversário</p>
+                      <div className="flex items-center justify-center gap-4 mb-6">
+                          <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-white text-xl ${userTeam?.primaryColor}`}>{userTeam?.name.substring(0,2)}</div>
+                          <span className="text-2xl font-bold text-slate-300">VS</span>
+                          <div className="w-16 h-16 rounded-full bg-slate-600 flex items-center justify-center font-bold text-white text-xl">?</div>
+                      </div>
+                      <button onClick={startMatch} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 transition-transform hover:scale-105 shadow-lg shadow-emerald-200">
+                          Iniciar Partida
+                      </button>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
+  const renderSquad = () => (
+      <div className="p-4 md:p-8 pb-24">
+          <h2 className="text-2xl font-bold text-slate-800 mb-6">Elenco Principal</h2>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              {squad.sort((a,b) => b.rating - a.rating).map(player => (
+                  <PlayerRow key={player.id} player={player} onSell={handleSellPlayer} showPrice />
+              ))}
+          </div>
+      </div>
   );
 
   const renderMarket = () => (
-    <div className="p-4 md:p-8 pb-24">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-            <div>
-                <h2 className="text-2xl md:text-3xl font-bold text-slate-800">Mercado</h2>
-                <p className="text-slate-500 text-sm">Encontre os melhores talentos</p>
-            </div>
-            <div className="flex items-center gap-3">
-                {/* Botão Atualizar Lista */}
-                <button 
-                    onClick={refreshMarket}
-                    disabled={loading}
-                    className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 font-bold hover:bg-slate-50 text-sm shadow-sm"
-                >
-                    <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-                    Atualizar Lista
-                </button>
-
-                <div className="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-full shadow-sm border border-emerald-200">
-                    <span className="text-xs font-bold uppercase mr-2">Orçamento</span>
-                    <span className="font-bold text-lg">$ {budget.toFixed(1)}M</span>
-                </div>
-            </div>
-        </div>
-        
-        <Card>
-            <div className="max-h-[70vh] overflow-y-auto">
-                {market.map((player) => (
-                    <PlayerRow 
-                        key={player.id} 
-                        player={player} 
-                        showPrice
-                        actionButton={
-                            <button 
-                                onClick={() => setNegotiationPlayer(player)}
-                                className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded shadow-sm hover:bg-emerald-700 transition-colors"
-                            >
-                                Negociar
-                            </button>
-                        }
-                    />
-                ))}
-            </div>
-        </Card>
-        
-        {/* Negotiation Modal */}
-        {negotiationPlayer && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-                    <div className="bg-slate-900 p-4 text-white flex justify-between items-center">
-                        <h3 className="font-bold text-lg">Negociar Contrato</h3>
-                        <button onClick={() => setNegotiationPlayer(null)} className="text-slate-400 hover:text-white"><X size={20} /></button>
-                    </div>
-                    
-                    <div className="p-6 space-y-6">
-                        <div className="flex items-center gap-4 pb-4 border-b border-slate-100">
-                            <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-500">
-                                <UserIcon size={24} />
-                            </div>
-                            <div>
-                                <p className="text-xl font-bold text-slate-800">{negotiationPlayer.name}</p>
-                                <p className="text-sm text-slate-500">{negotiationPlayer.position} • {negotiationPlayer.rating} OVR</p>
-                            </div>
-                            <div className="ml-auto text-right">
-                                <p className="text-xs text-slate-400 font-bold uppercase">Valor</p>
-                                <p className="text-emerald-600 font-bold text-lg">$ {negotiationPlayer.value}M</p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="flex justify-between text-sm font-medium text-slate-700 mb-1">
-                                    <span>Salário Semanal (milhares)</span>
-                                    <span className="text-emerald-600 font-bold">$ {negotiationOffer.salary}k</span>
-                                </label>
-                                <input 
-                                    type="range" min="10" max="500" step="5"
-                                    value={negotiationOffer.salary}
-                                    onChange={(e) => setNegotiationOffer({...negotiationOffer, salary: Number(e.target.value)})}
-                                    className="w-full accent-emerald-600"
-                                />
-                            </div>
-                            <div>
-                                <label className="flex justify-between text-sm font-medium text-slate-700 mb-1">
-                                    <span>Duração do Contrato</span>
-                                    <span className="text-blue-600 font-bold">{negotiationOffer.weeks} semanas</span>
-                                </label>
-                                <input 
-                                    type="range" min="20" max="150" step="10"
-                                    value={negotiationOffer.weeks}
-                                    onChange={(e) => setNegotiationOffer({...negotiationOffer, weeks: Number(e.target.value)})}
-                                    className="w-full accent-blue-600"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm text-slate-600">
-                            <p>Custo da Transferência: <span className="font-bold text-slate-900">$ {negotiationPlayer.value}M</span></p>
-                            <p>Orçamento Restante: <span className={`font-bold ${budget - negotiationPlayer.value < 0 ? 'text-red-600' : 'text-green-600'}`}>$ {(budget - negotiationPlayer.value).toFixed(1)}M</span></p>
-                        </div>
-
-                        <button 
-                            onClick={() => {
-                                if (budget < negotiationPlayer.value) {
-                                    alert("Orçamento insuficiente!");
-                                    return;
-                                }
-                                // Success chance logic
-                                const wantedSalary = negotiationPlayer.rating * 2;
-                                if (negotiationOffer.salary >= wantedSalary * 0.9) {
-                                    setBudget(b => b - negotiationPlayer.value);
-                                    setSquad(s => [...s, { ...negotiationPlayer, team: userTeam?.name, salary: negotiationOffer.salary, contractWeeks: negotiationOffer.weeks }]);
-                                    setMarket(m => m.filter(p => p.id !== negotiationPlayer.id));
-                                    setNegotiationPlayer(null);
-                                    alert(`Bem-vindo ao time, ${negotiationPlayer.name}!`);
-                                } else {
-                                    alert("O jogador recusou a proposta salarial. Tente oferecer mais.");
-                                }
-                            }}
-                            className="w-full py-3 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
-                        >
-                            Finalizar Contratação
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
-    </div>
+      <div className="p-4 md:p-8 pb-24">
+          <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-slate-800">Mercado da Bola</h2>
+              <div className="text-right">
+                  <p className="text-xs text-slate-500 uppercase font-bold">Orçamento</p>
+                  <p className="text-xl font-bold text-emerald-600">$ {budget.toFixed(1)}M</p>
+              </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              {market.map(player => (
+                  <PlayerRow key={player.id} player={player} actionButton={
+                      <button onClick={() => handleBuyPlayer(player)} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded hover:bg-emerald-700 font-bold">
+                          Comprar (${player.value}M)
+                      </button>
+                  } />
+              ))}
+          </div>
+      </div>
   );
 
   const renderStandings = () => (
       <div className="p-4 md:p-8 pb-24">
-          <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-6">Tabela do Campeonato</h2>
-          <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm md:text-base">
-                      <thead className="bg-slate-50 text-slate-500 border-b">
-                          <tr>
-                              <th className="p-3 font-semibold w-12 text-center">#</th>
-                              <th className="p-3 font-semibold">Clube</th>
-                              <th className="p-3 font-semibold text-center">P</th>
-                              <th className="p-3 font-semibold text-center hidden sm:table-cell">J</th>
-                              <th className="p-3 font-semibold text-center hidden sm:table-cell">V</th>
-                              <th className="p-3 font-semibold text-center hidden sm:table-cell">E</th>
-                              <th className="p-3 font-semibold text-center hidden sm:table-cell">D</th>
-                              <th className="p-3 font-semibold text-center hidden md:table-cell">SG</th>
-                          </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                          {[...leagueTable].sort((a, b) => {
-                              if (b.points !== a.points) return b.points - a.points;
-                              return (b.gf - b.ga) - (a.gf - a.ga);
-                          }).map((team, index) => (
-                              <tr key={team.id} className={`hover:bg-slate-50 ${team.id === userTeam?.id ? 'bg-emerald-50' : ''}`}>
-                                  <td className={`p-3 text-center font-bold ${index < 4 ? 'text-blue-600' : index > 16 ? 'text-red-600' : 'text-slate-600'}`}>
-                                      {index + 1}
-                                  </td>
-                                  <td className="p-3 font-medium flex items-center gap-2">
-                                      {team.id === userTeam?.id && <span className="w-2 h-2 rounded-full bg-emerald-500"></span>}
-                                      {team.name}
-                                  </td>
-                                  <td className="p-3 text-center font-bold text-slate-800">{team.points}</td>
-                                  <td className="p-3 text-center text-slate-500 hidden sm:table-cell">{team.played}</td>
-                                  <td className="p-3 text-center text-slate-500 hidden sm:table-cell">{team.won}</td>
-                                  <td className="p-3 text-center text-slate-500 hidden sm:table-cell">{team.drawn}</td>
-                                  <td className="p-3 text-center text-slate-500 hidden sm:table-cell">{team.lost}</td>
-                                  <td className="p-3 text-center text-slate-500 hidden md:table-cell">{team.gf - team.ga}</td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
-              </div>
-          </Card>
+          <h2 className="text-2xl font-bold text-slate-800 mb-6">Tabela do Campeonato</h2>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+             <table className="w-full text-left">
+                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                     <tr>
+                         <th className="p-4">Pos</th>
+                         <th className="p-4">Time</th>
+                         <th className="p-4 text-center">P</th>
+                         <th className="p-4 text-center hidden md:table-cell">J</th>
+                         <th className="p-4 text-center hidden md:table-cell">V</th>
+                         <th className="p-4 text-center hidden md:table-cell">E</th>
+                         <th className="p-4 text-center hidden md:table-cell">D</th>
+                         <th className="p-4 text-center">SG</th>
+                     </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100">
+                     {[...leagueTable].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)).map((t, i) => (
+                         <tr key={t.id} className={`hover:bg-slate-50 ${t.id === userTeam?.id ? 'bg-emerald-50' : ''}`}>
+                             <td className="p-4 font-bold text-slate-500 w-16">{i + 1}º</td>
+                             <td className="p-4 font-bold text-slate-800 flex items-center gap-3">
+                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white ${t.id === userTeam?.id ? userTeam.primaryColor : 'bg-slate-400'}`}>{t.name.substring(0,1)}</div>
+                                 {t.name}
+                             </td>
+                             <td className="p-4 text-center font-bold text-slate-900">{t.points}</td>
+                             <td className="p-4 text-center text-slate-500 hidden md:table-cell">{t.played}</td>
+                             <td className="p-4 text-center text-emerald-600 hidden md:table-cell">{t.won}</td>
+                             <td className="p-4 text-center text-slate-500 hidden md:table-cell">{t.drawn}</td>
+                             <td className="p-4 text-center text-red-500 hidden md:table-cell">{t.lost}</td>
+                             <td className="p-4 text-center font-mono text-slate-600">{t.gf - t.ga}</td>
+                         </tr>
+                     ))}
+                 </tbody>
+             </table>
+          </div>
       </div>
   );
 
   const renderTrophies = () => (
-      <div className="p-4 md:p-8 pb-24 text-center">
-           <div className="mb-8">
-              <h2 className="text-3xl font-bold text-slate-800">Sala de Troféus</h2>
-              <p className="text-slate-500">Suas conquistas como treinador do {userTeam?.name}</p>
-           </div>
-           
-           {trophies.length === 0 ? (
-               <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-12 flex flex-col items-center justify-center text-slate-400">
-                   <Trophy size={64} className="mb-4 opacity-20" />
-                   <p className="text-lg font-medium">Ainda vazio...</p>
-                   <p className="text-sm">Vença campeonatos para preencher sua estante!</p>
-               </div>
-           ) : (
-               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                   {trophies.map(t => (
-                       <div key={t.id} className="bg-gradient-to-br from-amber-100 to-amber-50 p-6 rounded-xl shadow-md border border-amber-200 flex flex-col items-center">
-                           <Crown size={48} className="text-amber-500 mb-3 drop-shadow-sm" />
-                           <h3 className="font-bold text-amber-900">{t.name}</h3>
-                           <p className="text-sm text-amber-700 font-medium">{t.year}</p>
-                       </div>
-                   ))}
-               </div>
-           )}
+      <div className="p-4 md:p-8 pb-24">
+          <h2 className="text-2xl font-bold text-slate-800 mb-6">Sala de Troféus</h2>
+          {trophies.length === 0 ? (
+              <div className="text-center py-20 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300">
+                  <Trophy size={64} className="mx-auto text-slate-300 mb-4" />
+                  <p className="text-slate-500 font-bold">Sua galeria está vazia.</p>
+                  <p className="text-sm text-slate-400">Vença campeonatos para preencher este espaço!</p>
+              </div>
+          ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  {trophies.map(trophy => (
+                      <div key={trophy.id} className="bg-gradient-to-b from-amber-100 to-white p-6 rounded-2xl border border-amber-200 shadow-sm flex flex-col items-center text-center">
+                          <div className="p-4 bg-white rounded-full shadow-lg mb-4 text-amber-500">
+                              <Crown size={40} />
+                          </div>
+                          <h3 className="font-bold text-amber-900">{trophy.name}</h3>
+                          <p className="text-xs text-amber-700 uppercase font-bold mt-1">{trophy.competition}</p>
+                          <span className="mt-3 bg-amber-200 text-amber-900 text-xs font-bold px-2 py-1 rounded-full">Temporada {trophy.year}</span>
+                      </div>
+                  ))}
+              </div>
+          )}
       </div>
   );
 
-  const renderMatch = () => {
-      if (preparingVisualMatch) {
-          return (
-              <div className="p-4 md:p-8 pb-24 flex flex-col items-center justify-center min-h-[80vh]">
-                  <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-600 mb-6"></div>
-                  <h3 className="text-2xl font-bold text-slate-800">Preparando o Jogo...</h3>
-                  <p className="text-slate-500">As equipes estão entrando em campo.</p>
-              </div>
-          );
-      }
-      
-      if (isVisualMatch) {
-          return (
-              <div className="fixed inset-0 bg-slate-900 z-[60] flex flex-col items-center justify-center p-2 md:p-4">
-                  {/* Scoreboard */}
-                  <div className="w-full max-w-4xl bg-black/40 backdrop-blur-md rounded-xl p-4 mb-4 flex justify-between items-center text-white border border-white/10">
-                      <div className="flex items-center gap-4 w-1/3">
-                           <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center font-bold ${userTeam?.primaryColor} ${userTeam?.secondaryColor}`}>
-                               {userTeam?.name.substring(0, 2)}
-                           </div>
-                           <span className="font-bold hidden md:inline">{userTeam?.name}</span>
-                      </div>
-                      <div className="flex flex-col items-center w-1/3">
-                           <div className="text-3xl md:text-5xl font-black tracking-widest font-mono">
-                               {currentScore.home} - {currentScore.away}
-                           </div>
-                           <div className="text-emerald-400 font-bold text-sm md:text-base animate-pulse flex items-center gap-1 mt-1">
-                               {simTime}' {isHalftime ? "INTERVALO" : ""}
-                           </div>
-                      </div>
-                      <div className="flex items-center justify-end gap-4 w-1/3">
-                           <span className="font-bold hidden md:inline">{currentOpponent?.name}</span>
-                           <div className="w-10 h-10 md:w-12 md:h-12 bg-slate-700 rounded-full flex items-center justify-center font-bold text-white border border-slate-600">
-                               {currentOpponent?.name.substring(0, 2)}
-                           </div>
-                      </div>
-                  </div>
-
-                  {/* Field Area */}
-                  <div className="w-full max-w-4xl relative shadow-2xl rounded-lg overflow-hidden border-4 border-slate-800">
-                      <SoccerField 
-                          homeTeam={userTeam!} 
-                          awayTeam={{id: 'opp', name: currentOpponent?.name || '', primaryColor: 'bg-white', secondaryColor: 'text-black'}} 
-                          gameTime={simTime}
-                          ballPos={ballPosition}
-                          homePositions={homePlayerPos}
-                          awayPositions={awayPlayerPos}
-                      />
-                  </div>
-
-                  {/* Event Feed (Moved Below) */}
-                  <div className="w-full max-w-4xl mt-4 bg-slate-900/80 rounded-xl p-4 border border-slate-700 h-32 overflow-y-auto shadow-inner">
-                       <div className="flex flex-col-reverse justify-end min-h-full gap-2">
-                           {matchEvents.slice(0, lastEventIndex + 1).slice(-5).reverse().map((ev, i) => ( // Show last 5, newest first
-                               <div key={i} className="flex items-start gap-3 text-slate-300 animate-in slide-in-from-left-2 duration-300 border-b border-slate-800/50 pb-1 last:border-0">
-                                   <span className="font-mono font-bold text-emerald-400 min-w-[2rem]">{ev.minute}'</span>
-                                   <span className="text-sm md:text-base">{ev.description}</span>
-                               </div>
-                           ))}
-                           {lastEventIndex === -1 && <p className="text-slate-500 italic text-sm text-center mt-4">A partida está começando...</p>}
-                       </div>
-                  </div>
-
-                  {/* Controls */}
-                  <div className="w-full max-w-4xl mt-4 flex justify-between items-center">
-                       <button 
-                          onClick={() => setSoundEnabled(!soundEnabled)}
-                          className="p-3 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
-                       >
-                           {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-                       </button>
-
-                       {isHalftime && !hasPlayedSecondHalf && (
-                           <button 
-                              onClick={startSecondHalf}
-                              className="px-8 py-3 bg-emerald-500 text-white font-bold rounded-full hover:bg-emerald-600 shadow-lg animate-bounce"
-                           >
-                               Iniciar 2º Tempo
-                           </button>
-                       )}
-                       
-                       {(simTime >= 90 || (isHalftime && !hasPlayedSecondHalf === false)) && (
-                           <button 
-                              onClick={endVisualMatch}
-                              className="px-6 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 text-sm font-bold"
-                           >
-                              {simTime >= 90 ? "Terminar Jogo" : "Pular"}
-                           </button>
-                       )}
-                       
-                       {/* Tactics Control */}
-                       <div className="flex gap-2">
-                           {['defensive', 'balanced', 'offensive'].map((t) => (
-                               <button
-                                   key={t}
-                                   onClick={() => setCurrentTactic(t as any)}
-                                   className={`px-3 py-1 rounded text-xs font-bold uppercase ${currentTactic === t ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-500'}`}
-                               >
-                                   {t === 'defensive' ? 'DEF' : t === 'balanced' ? 'BAL' : 'ATA'}
-                               </button>
-                           ))}
-                       </div>
-                  </div>
-              </div>
-          );
-      }
-
-      // Default: Show Match Setup (Pre-match)
-      return (
-          <div className="p-4 md:p-8 pb-24 flex flex-col items-center justify-center min-h-[80vh]">
-               <Card className="w-full max-w-2xl p-8 text-center space-y-8">
-                   <h2 className="text-2xl font-bold">Próximo Jogo</h2>
-                   
-                   <div className="flex items-center justify-center gap-8 md:gap-16">
-                       <div className="space-y-2">
-                           <div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center text-3xl font-bold shadow-xl ${userTeam?.primaryColor} ${userTeam?.secondaryColor}`}>
-                               {userTeam?.name.substring(0, 3).toUpperCase()}
-                           </div>
-                           <p className="font-bold text-lg">{userTeam?.name}</p>
-                           <div className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded">
-                                FOR: {Math.round(squad.reduce((a, b) => a + b.rating, 0) / (squad.length || 1))}
-                           </div>
-                       </div>
-
-                       <div className="text-4xl font-black text-slate-200">VS</div>
-
-                       <div className="space-y-2">
-                           <div className="w-24 h-24 mx-auto bg-slate-200 rounded-full flex items-center justify-center text-3xl font-bold text-slate-500 shadow-inner">
-                               ?
-                           </div>
-                           <p className="font-bold text-lg">Adversário</p>
-                           <div className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded">
-                                FOR: ??
-                           </div>
-                       </div>
+  // Career Mode Renderers
+  const renderCareerIntro = () => (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-800 via-slate-900 to-black"></div>
+          <div className="relative z-10 w-full max-w-5xl flex flex-col md:flex-row gap-8 items-center">
+              <div className="hidden md:flex flex-col items-center animate-in slide-in-from-left duration-700">
+                   <div className="w-72 h-[26rem] bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 rounded-t-3xl rounded-b-[3rem] border-4 border-yellow-100 shadow-2xl relative overflow-hidden flex flex-col">
+                        <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                        <div className="p-5 pt-8 flex flex-col h-full relative z-10 text-amber-950">
+                            <div className="flex justify-between items-start">
+                                <div className="flex flex-col items-center"><span className="text-4xl font-black leading-none">60</span><span className="text-lg font-bold uppercase">{careerTempPos === Position.GK ? 'GOL' : careerTempPos === Position.DEF ? 'DEF' : careerTempPos === Position.MID ? 'MEI' : 'ATA'}</span></div>
+                                <div className="w-8 h-5 bg-blue-700 rounded-sm border border-white opacity-80"></div>
+                            </div>
+                            <div className="flex-1 flex items-center justify-center"><User size={110} className="text-amber-900/80 drop-shadow-md" /></div>
+                            <div className="text-center pb-4"><h2 className="text-2xl font-black uppercase tracking-tighter truncate mb-1">{careerTempName || "JOGADOR"}</h2><div className="w-full h-0.5 bg-amber-900/30 mb-2"></div><div className="flex justify-center gap-3 text-xs font-black opacity-75"><span>PAC 65</span><span>SHO 60</span><span>PAS 62</span><span>DRI 64</span></div></div>
+                        </div>
                    </div>
-
-                   <div className="space-y-4 max-w-xs mx-auto">
-                       <button 
-                          onClick={handlePlayMatch}
-                          className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-105 transition-all flex items-center justify-center gap-2"
-                       >
-                           <MonitorPlay size={20} />
-                           Assistir Jogo (2D)
-                       </button>
-                       <button 
-                          onClick={handleSimulateMatch}
-                          className="w-full py-3 bg-white border-2 border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-                       >
-                           <Zap size={20} />
-                           Simulação Rápida
-                       </button>
-                   </div>
-               </Card>
-          </div>
-      );
-  };
-
-  // --- Logic for Matches ---
-
-  const handleSimulateMatch = async () => {
-      if (!userTeam) return;
-      setIsSimulating(true);
-      
-      // Pick opponent
-      const opponentName = generateFictionalTeamName();
-      const opponent: Team = { id: 'opp', name: opponentName, primaryColor: 'bg-gray-500', secondaryColor: 'text-white' };
-      
-      const result = await simulateMatchWithGemini(userTeam, squad, opponent);
-      
-      setMatchResult(result);
-      updateLeagueTable(result);
-      generatePostMatchSocial(); // Generate posts
-      setIsSimulating(false);
-  };
-
-  const handlePlayMatch = async () => {
-      if (!userTeam) return;
-      
-      setPreparingVisualMatch(true); // Start audio if enabled
-      
-      // Setup Match Data
-      const opponentName = generateFictionalTeamName();
-      const opponent: Team = { id: 'opp', name: opponentName, primaryColor: 'bg-gray-500', secondaryColor: 'text-white' };
-      setCurrentOpponent(opponent);
-      
-      // Pre-calculate result for logic consistency
-      const result = await simulateMatchWithGemini(userTeam, squad, opponent);
-      setMatchEvents(result.events); // Store events to trigger them at right time
-      
-      // Reset Visual State
-      setSimTime(0);
-      setCurrentScore({ home: 0, away: 0 });
-      setIsHalftime(false);
-      setHasPlayedSecondHalf(false);
-      setLastEventIndex(-1);
-      
-      // Start Visual Loop
-      setIsVisualMatch(true);
-      setPreparingVisualMatch(false);
-      startMatchLoop(result.events);
-  };
-
-  const startMatchLoop = (events: any[]) => {
-      let minute = 0;
-      const interval = setInterval(() => {
-          minute += 1;
-          setSimTime(minute);
-          
-          // Update Ball & Players positions (Random movement for ambience)
-          movePlayersAndBall();
-
-          // Check events
-          const eventIndex = events.findIndex(e => e.minute === minute);
-          if (eventIndex !== -1) {
-               setLastEventIndex(eventIndex);
-               const event = events[eventIndex];
-               if (event.type === 'goal') {
-                   if (event.team === 'home') setCurrentScore(s => ({...s, home: s.home + 1}));
-                   else setCurrentScore(s => ({...s, away: s.away + 1}));
-               }
-          }
-
-          if (minute === 45) {
-              clearInterval(interval);
-              setIsHalftime(true);
-          }
-      }, 100); // Fast speed: 90mins in ~9 seconds of active time (split in halves)
-      
-      // Store interval id in a ref if needed to clear, but for this simple version:
-      // We attach it to window or use a ref. For now, using a closure variable won't work well with React updates if we want to stop it.
-      // *Simplified for this code structure*: Rely on the loop running to 45 then stopping.
-  };
-  
-  // Simplified ref for loop control
-  const matchLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
-  useEffect(() => {
-      if (isVisualMatch && !isHalftime && simTime < 90) {
-          matchLoopRef.current = setInterval(() => {
-              setSimTime(prev => {
-                  const next = prev + 1;
-                  
-                  // Move logic
-                  movePlayersAndBall();
-                  
-                  // Event check
-                  const event = matchEvents.find(e => e.minute === next);
-                  if (event) {
-                       // Just trigger UI update via rendering
-                       if (event.type === 'goal') {
-                           if (event.team === 'home') setCurrentScore(s => ({...s, home: s.home + 1}));
-                           else setCurrentScore(s => ({...s, away: s.away + 1}));
-                       }
-                  }
-
-                  if (next === 45) {
-                      setIsHalftime(true);
-                      if (matchLoopRef.current) clearInterval(matchLoopRef.current);
-                  }
-                  if (next >= 90) {
-                      if (matchLoopRef.current) clearInterval(matchLoopRef.current);
-                  }
-                  return next;
-              });
-          }, 150); // 150ms per game minute
-      }
-      return () => {
-          if (matchLoopRef.current) clearInterval(matchLoopRef.current);
-      };
-  }, [isVisualMatch, isHalftime, hasPlayedSecondHalf, matchEvents]);
-
-  const startSecondHalf = () => {
-      setHasPlayedSecondHalf(true);
-      setIsHalftime(false);
-  };
-
-  const movePlayersAndBall = () => {
-      // Simple random movement generator
-      setBallPosition({ 
-          x: 50 + Math.sin(Date.now() / 500) * 30, 
-          y: 50 + Math.cos(Date.now() / 700) * 20 
-      });
-      
-      // Generate positions for 10 players + GK per side
-      const generateTeamPos = (isHome: boolean) => {
-           return Array(11).fill(0).map((_, i) => ({
-               x: (isHome ? 20 : 80) + (Math.random() * 20 - 10),
-               y: 10 + i * 8 + (Math.random() * 5)
-           }));
-      };
-      
-      setHomePlayerPos(generateTeamPos(true));
-      setAwayPlayerPos(generateTeamPos(false));
-  };
-
-  const endVisualMatch = () => {
-      setIsVisualMatch(false);
-      // Commit result
-      const result: MatchResult = {
-          homeScore: currentScore.home,
-          awayScore: currentScore.away,
-          events: matchEvents,
-          summary: "Jogo encerrado.",
-          opponentName: currentOpponent?.name || 'Adversário',
-          win: currentScore.home > currentScore.away,
-          draw: currentScore.home === currentScore.away
-      };
-      setMatchResult(result);
-      updateLeagueTable(result);
-      generatePostMatchSocial(); // Generate posts
-  };
-
-  // --- Main Render ---
-  
-  // Helper to simplify main return
-  const renderContent = () => {
-      if (loading && !careerData && view !== 'select-team') return (
-          <div className="h-screen flex items-center justify-center bg-slate-50">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-          </div>
-      );
-
-      if (matchResult && !isVisualMatch && !isSimulating) {
-          return (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in duration-300">
-                      <div className={`p-6 text-center ${matchResult.win ? 'bg-emerald-600' : matchResult.draw ? 'bg-amber-500' : 'bg-red-600'} text-white`}>
-                          <h2 className="text-3xl font-black mb-2">{matchResult.homeScore} - {matchResult.awayScore}</h2>
-                          <p className="font-bold text-lg opacity-90">{matchResult.win ? 'VITÓRIA' : matchResult.draw ? 'EMPATE' : 'DERROTA'}</p>
-                      </div>
-                      <div className="p-6 space-y-4">
-                          <p className="text-center text-slate-600 font-medium">vs {matchResult.opponentName}</p>
-                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm space-y-2 max-h-40 overflow-y-auto">
-                              {matchResult.events.map((e, i) => (
-                                  <div key={i} className="flex gap-2">
-                                      <span className="font-bold text-slate-400 w-6">{e.minute}'</span>
-                                      <span className="text-slate-700">{e.description}</span>
-                                  </div>
-                              ))}
+              </div>
+              <div className="flex-1 w-full max-w-lg">
+                  <div className="mb-6 flex items-center"><button onClick={() => setView(userTeam ? 'dashboard' : 'select-team')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"><ArrowLeftRight size={20} /><span className="font-bold">Voltar</span></button></div>
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl">
+                      {!careerOffers.length ? (
+                          <div className="space-y-6">
+                              <div><label className="block text-xs font-bold text-emerald-400 uppercase mb-2">Nome do Craque</label><input type="text" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-bold text-lg" placeholder="Como serás chamado?" value={careerTempName} onChange={e => setCareerTempName(e.target.value)} /></div>
+                              <div><label className="block text-xs font-bold text-emerald-400 uppercase mb-2">Posição</label><div className="grid grid-cols-2 gap-3">{[{ id: Position.ATT, label: 'Atacante', icon: Target }, { id: Position.MID, label: 'Meio', icon: Activity }, { id: Position.DEF, label: 'Defensor', icon: Shield }, { id: Position.GK, label: 'Goleiro', icon: Handshake }].map((pos) => (<button key={pos.id} onClick={() => setCareerTempPos(pos.id)} className={`p-3 rounded-xl border transition-all flex items-center gap-3 ${careerTempPos === pos.id ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}><pos.icon size={20} /><span className="font-bold text-sm">{pos.label}</span></button>))}</div></div>
+                              <button onClick={async () => { setLoading(true); await new Promise(r => setTimeout(r, 2000)); const teams = [...BRAZILIAN_TEAMS].sort(() => 0.5 - Math.random()).slice(0, 3); setCareerOffers(teams.map(t => ({ name: t.name, color: t.primaryColor }))); setLoading(false); }} disabled={loading || !careerTempName} className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-bold hover:from-emerald-400 hover:to-teal-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 mt-4">{loading ? 'Jogando Peneira...' : 'Entrar em Campo'}</button>
                           </div>
-                          <button 
-                              onClick={() => {
-                                  setMatchResult(null);
-                                  setCurrentOpponent(null);
-                              }}
-                              className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800"
-                          >
-                              Continuar
-                          </button>
-                      </div>
+                      ) : (
+                          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                              <div className="text-center mb-6"><CheckCircle size={32} className="text-emerald-500 mx-auto mb-2" /><h3 className="text-2xl font-bold text-white">Aprovado!</h3></div>
+                              <div className="space-y-3">{careerOffers.map((offer, idx) => (<button key={idx} onClick={() => { setCareerData({ playerName: careerTempName, position: careerTempPos, teamName: offer.name, teamColor: offer.color, matchesPlayed: 0, goals: 0, assists: 0, rating: 70, history: [], cash: 500, inventory: [], season: 1, trophies: [] }); setView('career-hub'); }} className="w-full p-4 rounded-xl bg-white hover:bg-slate-50 flex items-center justify-between group"><span className="font-bold text-slate-800">{offer.name}</span><span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">Assinar</span></button>))}</div>
+                          </div>
+                      )}
                   </div>
               </div>
-          );
-      }
-
-      switch (view) {
-          case 'dashboard': return renderDashboard();
-          case 'social': return renderSocial();
-          case 'squad': return renderSquad();
-          case 'market': return renderMarket();
-          case 'match': return renderMatch();
-          case 'standings': return renderStandings();
-          case 'trophies': return renderTrophies();
-          case 'career-intro': return renderCareerIntro();
-          case 'career-hub': return renderCareerHub();
-          default: return <div className="p-8">Em construção...</div>;
-      }
-  };
-
-  // Icons for User Icon placeholder
-  const UserIcon = ({ size }: {size: number}) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-          <circle cx="12" cy="7" r="4"></circle>
-      </svg>
+          </div>
+      </div>
   );
 
-  if (view === 'select-team') {
-      return <TeamSelection onSelect={handleTeamSelect} />;
-  }
-
-  // Layout Wrapper for App Views
-  if (view === 'career-hub' || view === 'career-intro') {
-      // Career mode has full screen specialized layout usually, but we keep sidebar if desired or simple full
-      // Based on design, Career Mode is immersive. Let's keep it full screen no sidebar for "Focus".
+  const renderCareerHub = () => {
+      if (!careerData) return null;
       return (
-          <div className="min-h-screen bg-slate-100 font-sans text-slate-900">
-              {renderContent()}
+          <div className="p-4 md:p-8 pb-24 space-y-6 bg-slate-50 min-h-screen">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-6">
+                  <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg ${careerData.teamColor}`}>{careerData.teamName.substring(0, 2)}</div>
+                  <div className="flex-1">
+                      <h2 className="text-2xl font-bold text-slate-800">{careerData.playerName}</h2>
+                      <p className="text-slate-500 font-medium">{careerData.teamName} • {careerData.position}</p>
+                      <div className="flex gap-4 mt-3"><div className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-bold flex gap-1"><Star size={16} />{careerData.rating} OVR</div><div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">$ {careerData.cash}</div></div>
+                  </div>
+              </div>
+              <button onClick={async () => { setLoading(true); await new Promise(r => setTimeout(r, 1000)); setCareerData(prev => prev ? ({...prev, matchesPlayed: prev.matchesPlayed + 1, cash: prev.cash + 200, goals: prev.goals + (Math.random() > 0.7 ? 1 : 0), history: [...prev.history, `Jogo ${prev.matchesPlayed + 1}: Nota 7.5`] }) : null); setLoading(false); }} className="w-full p-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl shadow-lg flex items-center justify-between"><div><p className="text-indigo-200 font-medium mb-1">Próxima Partida</p><h3 className="text-2xl font-bold">Jogar Semana {careerData.matchesPlayed + 1}</h3></div>{loading ? <div className="animate-spin w-8 h-8 border-2 border-white rounded-full border-t-transparent"></div> : <PlayCircle size={32} />}</button>
+              
+              <div className="grid grid-cols-2 gap-4">
+                   <button onClick={() => setShowShop(true)} className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-emerald-500 flex flex-col items-center gap-2"><ShoppingBag size={24} className="text-emerald-600" /><span className="font-bold">Loja</span></button>
+                   <button onClick={() => setShowCareerTrophies(true)} className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-amber-500 flex flex-col items-center gap-2"><Trophy size={24} className="text-amber-500" /><span className="font-bold">Conquistas</span></button>
+              </div>
+              <Card title="Histórico"><div className="space-y-3 max-h-60 overflow-y-auto">{careerData.history.length === 0 ? <p className="text-slate-400">Nada ainda.</p> : [...careerData.history].reverse().map((h, i) => <div key={i} className="p-3 bg-slate-100 rounded">{h}</div>)}</div></Card>
+              <button onClick={() => setView('dashboard')} className="w-full py-3 text-red-500 font-bold">Sair do Modo Carreira</button>
+
+              {showShop && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+                          <div className="p-4 border-b flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg">Loja</h3><button onClick={() => setShowShop(false)}><X size={20} /></button></div>
+                          <div className="p-4 overflow-y-auto space-y-3">
+                              {shopItems.map(item => {
+                                  const owned = careerData.inventory.includes(item.id);
+                                  return (
+                                      <div key={item.id} className="flex items-center justify-between p-3 border rounded-xl">
+                                          <div className="flex items-center gap-3"><div className="p-2 bg-slate-100 rounded-lg">{item.icon}</div><div><p className="font-bold text-sm">{item.name}</p><p className="text-xs text-slate-500">$ {item.price}</p></div></div>
+                                          <button disabled={owned || careerData.cash < item.price} onClick={() => setCareerData(prev => prev ? ({...prev, cash: prev.cash - item.price, inventory: [...prev.inventory, item.id]}) : null)} className={`px-3 py-1 rounded text-xs font-bold ${owned ? 'bg-slate-200 text-slate-500' : 'bg-emerald-600 text-white'}`}>{owned ? 'Comprado' : 'Comprar'}</button>
+                                      </div>
+                                  )
+                              })}
+                          </div>
+                      </div>
+                  </div>
+              )}
+              {showCareerTrophies && (
+                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 text-center">
+                          <h3 className="text-xl font-bold mb-4">Troféus da Carreira</h3>
+                          <p className="text-slate-500">Em breve...</p>
+                          <button onClick={() => setShowCareerTrophies(false)} className="mt-4 text-slate-400">Fechar</button>
+                      </div>
+                   </div>
+              )}
           </div>
       );
-  }
+  };
+
+  const renderSocial = () => (
+      <div className="p-4 md:p-8 pb-24 max-w-3xl mx-auto">
+          <h2 className="text-3xl font-bold text-slate-800 mb-6">Rede Social</h2>
+          <div className="space-y-4">
+              {socialPosts.map(post => (
+                  <Card key={post.id} className="shadow-md">
+                      <div className="flex gap-3">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-lg bg-indigo-600`}>{post.authorName.charAt(0)}</div>
+                          <div className="flex-1">
+                              <p className="font-bold">{post.authorName} <span className="text-slate-400 text-xs font-normal">• {post.timeAgo}</span></p>
+                              <p className="text-lg text-slate-800 mt-2 mb-3">{post.content}</p>
+                              <div className="flex gap-4 text-slate-500 text-sm">
+                                  <button className="flex items-center gap-1 hover:text-red-500"><Heart size={16} /> {post.likes}</button>
+                                  <button className="flex items-center gap-1"><MessageCircle size={16} /> {post.comments.length}</button>
+                              </div>
+                              {/* Comments */}
+                              <div className="mt-3 bg-slate-50 p-3 rounded-lg space-y-2">
+                                  {post.comments.map((c, i) => (<div key={i} className="text-sm"><span className="font-bold">{c.author}: </span>{c.text}</div>))}
+                                  <div className="flex gap-2 mt-2"><input className="flex-1 border rounded-full px-3 py-1 text-sm" placeholder="Comentar..." value={commentText[post.id] || ''} onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} /><button className="text-emerald-600"><Send size={16} /></button></div>
+                              </div>
+                          </div>
+                      </div>
+                  </Card>
+              ))}
+          </div>
+      </div>
+  );
+
+  if (view === 'select-team') return <TeamSelection onSelect={handleTeamSelect} />;
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900 flex flex-col lg:flex-row">
       <Sidebar currentView={view} onChangeView={setView} team={userTeam} />
       
-      <div className="flex-1 min-w-0">
-         {renderContent()}
-      </div>
+      <main className="flex-1 overflow-y-auto h-screen no-scrollbar relative">
+        {view === 'dashboard' && renderDashboard()}
+        {view === 'match' && renderMatch()}
+        {view === 'squad' && renderSquad()}
+        {view === 'market' && renderMarket()}
+        {view === 'standings' && renderStandings()}
+        {view === 'trophies' && renderTrophies()}
+        {view === 'social' && renderSocial()}
+        {view === 'career-intro' && renderCareerIntro()}
+        {view === 'career-hub' && renderCareerHub()}
+      </main>
 
       <MobileNav currentView={view} onChangeView={setView} team={userTeam} />
     </div>

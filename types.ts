@@ -45,6 +45,14 @@ export interface Trophy {
   competition: string;
 }
 
+export interface Transaction {
+  id: string;
+  type: 'buy' | 'sell' | 'salary' | 'prize' | 'renewal';
+  description: string;
+  amount: number; // Positive for income, negative for expense
+  week: number;
+}
+
 export interface MatchEvent {
   minute: number;
   description: string;
