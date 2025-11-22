@@ -404,80 +404,103 @@ export default function App() {
 
   const simulateWorldMatches = () => {
       setLeagueTable(prev => {
-           const newTable = [...prev];
-           newTable.forEach(t => {
-                if (t.id !== userTeam?.id) {
+           // Create a new array properly mapped to ensure state updates trigger re-render
+           return prev.map(t => {
+               if (t.id !== userTeam?.id) {
                    if (Math.random() > 0.2) {
                        const gf = Math.floor(Math.random() * 4);
                        const ga = Math.floor(Math.random() * 4);
-                       t.played += 1;
-                       t.gf += gf;
-                       t.ga += ga;
-                       if (gf > ga) { t.points += 3; t.won += 1; }
-                       else if (gf === ga) { t.points += 1; t.drawn += 1; }
-                       else { t.lost += 1; }
+                       let { points, won, drawn, lost } = t;
+                       
+                       if (gf > ga) { points += 3; won += 1; }
+                       else if (gf === ga) { points += 1; drawn += 1; }
+                       else { lost += 1; }
+                       
+                       return {
+                           ...t,
+                           played: t.played + 1,
+                           gf: t.gf + gf,
+                           ga: t.ga + ga,
+                           points,
+                           won,
+                           drawn,
+                           lost
+                       };
                    }
-                }
+               }
+               return t;
            });
-           return newTable;
       });
   }
 
   const updateLeagueTable = (result: MatchResult) => {
-       let newStatsForCheck: TeamStats | null = null;
+       let updatedUserStats: TeamStats | null = null;
+
        setLeagueTable(prev => {
-           const newTable = [...prev];
-           const userEntry = newTable.find(t => t.id === userTeam?.id);
-           if (userEntry) {
-               userEntry.played += 1;
-               userEntry.gf += result.homeScore;
-               userEntry.ga += result.awayScore;
-               if (result.homeScore > result.awayScore) { userEntry.points += 3; userEntry.won += 1; }
-               else if (result.homeScore === result.awayScore) { userEntry.points += 1; userEntry.drawn += 1; }
-               else { userEntry.lost += 1; }
-               newStatsForCheck = {...userEntry};
-           }
-           newTable.forEach(t => {
+           return prev.map(t => {
+               // Update User Team
+               if (t.id === userTeam?.id) {
+                   const newStats = {
+                       ...t,
+                       played: t.played + 1,
+                       gf: t.gf + result.homeScore,
+                       ga: t.ga + result.awayScore,
+                       won: t.won + (result.homeScore > result.awayScore ? 1 : 0),
+                       drawn: t.drawn + (result.homeScore === result.awayScore ? 1 : 0),
+                       lost: t.lost + (result.homeScore < result.awayScore ? 1 : 0),
+                       points: t.points + (result.homeScore > result.awayScore ? 3 : (result.homeScore === result.awayScore ? 1 : 0))
+                   };
+                   updatedUserStats = newStats;
+                   return newStats;
+               }
+               
+               // Update Other teams (Simulation of concurrent games)
                if (t.id !== userTeam?.id) {
                    if (Math.random() > 0.5) {
                        const gf = Math.floor(Math.random() * 4);
                        const ga = Math.floor(Math.random() * 4);
-                       t.played += 1;
-                       t.gf += gf;
-                       t.ga += ga;
-                       if (gf > ga) { t.points += 3; t.won += 1; }
-                       else if (gf === ga) { t.points += 1; t.drawn += 1; }
-                       else { t.lost += 1; }
+                       return {
+                           ...t,
+                           played: t.played + 1,
+                           gf: t.gf + gf,
+                           ga: t.ga + ga,
+                           won: t.won + (gf > ga ? 1 : 0),
+                           drawn: t.drawn + (gf === ga ? 1 : 0),
+                           lost: t.lost + (gf < ga ? 1 : 0),
+                           points: t.points + (gf > ga ? 3 : (gf === ga ? 1 : 0))
+                       };
                    }
                }
+               return t;
            });
-           return newTable;
        });
        
        setWeek(w => w + 1);
-       if (newStatsForCheck) {
-           const stats = newStatsForCheck as TeamStats;
-           if (stats.points >= 38) {
-               setTrophies(prev => {
-                   if (!prev.find(t => t.name === 'Melhor Técnico')) {
-                       alert("🏆 CONQUISTA: Melhor Técnico! (Atingiu 38 pontos)");
-                       setView('trophies');
-                       return [...prev, { id: `manager-${Date.now()}`, name: 'Melhor Técnico', year: 1, competition: 'Brasileirão' }];
-                   }
-                   return prev;
-               });
+
+       // Trophy check (using the local variable captured from the map loop)
+       // We use a timeout to let the state update settle or just use the local var
+       setTimeout(() => {
+           if (updatedUserStats) {
+               if (updatedUserStats.points >= 38) {
+                   setTrophies(prev => {
+                       if (!prev.find(t => t.name === 'Melhor Técnico')) {
+                           alert("🏆 CONQUISTA: Melhor Técnico! (Atingiu 38 pontos)");
+                           return [...prev, { id: `manager-${Date.now()}`, name: 'Melhor Técnico', year: 1, competition: 'Brasileirão' }];
+                       }
+                       return prev;
+                   });
+               }
+               if (updatedUserStats.points >= 89) {
+                    setTrophies(prev => {
+                       if (!prev.find(t => t.name === 'Campeão Brasileiro')) {
+                           alert("🏆 É CAMPEÃO! O título é seu! (Atingiu 89 pontos)");
+                           return [...prev, { id: `champ-${Date.now()}`, name: 'Campeão Brasileiro', year: 1, competition: 'Série A' }];
+                       }
+                       return prev;
+                   });
+               }
            }
-           if (stats.points >= 89) {
-                setTrophies(prev => {
-                   if (!prev.find(t => t.name === 'Campeão Brasileiro')) {
-                       alert("🏆 É CAMPEÃO! O título é seu! (Atingiu 89 pontos)");
-                       setView('trophies');
-                       return [...prev, { id: `champ-${Date.now()}`, name: 'Campeão Brasileiro', year: 1, competition: 'Série A' }];
-                   }
-                   return prev;
-               });
-           }
-       }
+       }, 500);
   };
 
   const handleBuyPlayer = (player: Player) => {
@@ -510,8 +533,8 @@ export default function App() {
       setCurrentOpponent(opponentTeam);
       setPreparingVisualMatch(true);
       
-      // Use Gemini to generate result
-      const result = await simulateMatchWithGemini(userTeam!, squad, opponentTeam);
+      // Use Gemini to generate result, PASSING TACTICS now
+      const result = await simulateMatchWithGemini(userTeam!, squad, opponentTeam, tactics);
       setMatchEvents(result.events);
       
       // Prep Visuals

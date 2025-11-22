@@ -149,48 +149,85 @@ export const generateSocialFeed = (): SocialPost[] => {
     return posts;
 };
 
-export const simulateMatchWithGemini = async (myTeam: Team, mySquad: Player[], opponent: Team): Promise<MatchResult> => {
+export const simulateMatchWithGemini = async (
+    myTeam: Team, 
+    mySquad: Player[], 
+    opponent: Team,
+    tactics?: { formation: string, style: string, intensity: string }
+): Promise<MatchResult> => {
   await delay(2000); // Simula a "IA" pensando e os 90 minutos
 
-  // 1. Calcular força dos times
-  const myAvg = mySquad.reduce((acc, p) => acc + p.rating, 0) / (mySquad.length || 1);
-  // Oponente tem força aleatória entre 70 e 85, ajustado levemente pelo "nível" do meu time
-  const oppStrength = getRandomNumber(70, 85) + (Math.random() > 0.5 ? 2 : -2);
+  // 1. Calcular força base dos times
+  let myAvg = mySquad.reduce((acc, p) => acc + p.rating, 0) / (mySquad.length || 1);
+  
+  // 2. Aplicar bônus TÁTICO (Isto faz as táticas ajudarem a vencer)
+  let tacticalBonus = 0;
+  let tacticLog = "";
+  
+  if (tactics) {
+      // Bônus por Formação
+      if (tactics.formation === '4-3-3') { tacticalBonus += 3; tacticLog += "Ataque Forte (+3). "; } 
+      else if (tactics.formation === '3-5-2') { tacticalBonus += 2; tacticLog += "Meio-campo preenchido (+2). "; }
+      else { tacticalBonus += 1; tacticLog += "Equilíbrio defensivo (+1). "; } // 4-4-2
 
-  // 2. Determinar placar baseado na diferença de força + fator sorte
+      // Bônus por Estilo
+      if (tactics.style === 'Tic-Taka') { tacticalBonus += 2; tacticLog += "Posse de bola dominada (+2). "; }
+      else if (tactics.style === 'Contra-Ataque') { tacticalBonus += 2.5; tacticLog += "Contra-ataques letais (+2.5). "; }
+
+      // Bônus por Intensidade
+      if (tactics.intensity === 'Pressão Alta') { tacticalBonus += 3; tacticLog += "Adversário sufocado (+3). "; }
+      else if (tactics.intensity === 'Equilibrado') { tacticalBonus += 1; }
+  }
+
+  // Aplica o bônus na força do time
+  myAvg += tacticalBonus;
+
+  // Oponente tem força aleatória entre 70 e 85
+  // Reduzimos levemente a força máxima do oponente para balancear a favor do jogador se ele usar táticas
+  const oppStrength = getRandomNumber(70, 83) + (Math.random() > 0.5 ? 1 : -1);
+
+  // 3. Determinar placar baseado na diferença de força + fator sorte
   const strengthDiff = myAvg - oppStrength;
-  const luck = Math.random() * 10 - 5; // Fator sorte de -5 a +5
+  
+  // Sorte ajuda um pouco, mas a tática define mais
+  const luck = Math.random() * 8 - 3; 
   const matchFactor = strengthDiff + luck;
 
   let myScore = 0;
   let oppScore = 0;
 
   if (matchFactor > 8) {
-    // Vitória provável
-    myScore = getRandomNumber(2, 5);
+    // Vitória Goleada
+    myScore = getRandomNumber(3, 6);
     oppScore = getRandomNumber(0, 1);
-  } else if (matchFactor > 2) {
-    // Jogo equilibrado, vantagem nossa
-    myScore = getRandomNumber(1, 3);
+  } else if (matchFactor > 3) {
+    // Vitória Confortável
+    myScore = getRandomNumber(2, 3);
+    oppScore = getRandomNumber(0, 1);
+  } else if (matchFactor > 0) {
+    // Jogo Apertado (Vitória ou Empate)
+    myScore = getRandomNumber(1, 2);
     oppScore = getRandomNumber(0, 2);
-  } else if (matchFactor > -2) {
-    // Empate provável
-    myScore = getRandomNumber(0, 2);
-    oppScore = getRandomNumber(0, 2);
-  } else {
-    // Derrota provável
+    // Garante vitória se a tática for boa
+    if (tacticalBonus > 5 && myScore <= oppScore) myScore += 1; 
+  } else if (matchFactor > -5) {
+    // Empate ou Derrota leve
     myScore = getRandomNumber(0, 1);
-    oppScore = getRandomNumber(1, 4);
+    oppScore = getRandomNumber(1, 2);
+  } else {
+    // Derrota
+    myScore = getRandomNumber(0, 1);
+    oppScore = getRandomNumber(2, 4);
   }
 
-  // 3. Gerar Eventos condizentes com o placar
+  // 4. Gerar Eventos condizentes com o placar
   const events: any[] = [];
 
   // Gols do time da casa
   for (let i = 0; i < myScore; i++) {
     events.push({
       minute: getRandomNumber(5, 90),
-      description: `GOL! ${generateName()} balança a rede para o ${myTeam.name}!`,
+      description: `GOL! ${generateName()} marca! (${tacticLog.split('.')[0]})`,
       type: 'goal',
       team: 'home'
     });
@@ -200,28 +237,28 @@ export const simulateMatchWithGemini = async (myTeam: Team, mySquad: Player[], o
   for (let i = 0; i < oppScore; i++) {
     events.push({
       minute: getRandomNumber(5, 90),
-      description: `Gol do ${opponent.name}. A defesa falhou.`,
+      description: `Gol do ${opponent.name}. Falha na marcação.`,
       type: 'goal',
       team: 'away'
     });
   }
 
-  // Cartões e substituições aleatórias para dar sabor
-  const extraEventsCount = getRandomNumber(1, 3);
+  // Cartões e substituições
+  const extraEventsCount = getRandomNumber(2, 4);
   for (let i = 0; i < extraEventsCount; i++) {
     const minute = getRandomNumber(10, 85);
-    const isCard = Math.random() > 0.5;
+    const isCard = Math.random() > 0.6;
     if (isCard) {
       events.push({
         minute,
-        description: `Cartão amarelo por falta dura.`,
+        description: `Cartão amarelo. Jogo pegado.`,
         type: 'card',
         team: Math.random() > 0.5 ? 'home' : 'away'
       });
     } else {
       events.push({
         minute,
-        description: `Substituição tática para renovar o fôlego.`,
+        description: `Técnico mexe no time.`,
         type: 'substitution',
         team: Math.random() > 0.5 ? 'home' : 'away'
       });
@@ -233,9 +270,9 @@ export const simulateMatchWithGemini = async (myTeam: Team, mySquad: Player[], o
 
   // Gerar resumo
   let summary = "";
-  if (myScore > oppScore) summary = `Uma grande vitória do ${myTeam.name}! O time dominou as ações e mereceu os 3 pontos.`;
-  else if (myScore === oppScore) summary = `Um jogo muito disputado que terminou em igualdade. Ambos os times tiveram chances.`;
-  else summary = `Dia difícil para o ${myTeam.name}. O adversário foi mais eficiente nas finalizações.`;
+  if (myScore > oppScore) summary = `Vitória importante! As táticas funcionaram bem.`;
+  else if (myScore === oppScore) summary = `Tudo igual. O jogo foi equilibrado.`;
+  else summary = `Derrota. Precisamos rever a estratégia para o próximo jogo.`;
 
   return {
     homeScore: myScore,
