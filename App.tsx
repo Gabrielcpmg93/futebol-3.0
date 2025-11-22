@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData, SocialComment, Transaction } from './types';
-import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateFictionalTeamName, getFictionalLeagueNames, generateSocialFeed } from './services/geminiService';
+import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData, SocialComment, Transaction, LibertadoresData, LibOpponent } from './types';
+import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateFictionalTeamName, getFictionalLeagueNames, generateSocialFeed, getLibertadoresTeams, generateLibertadoresGroups } from './services/geminiService';
 import { Card } from './components/Card';
 import { PlayerRow } from './components/PlayerRow';
 import { 
@@ -38,7 +38,9 @@ import {
     FileText,
     BarChart3,
     CalendarClock,
-    Send
+    Send,
+    Globe2,
+    Lock
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -123,7 +125,9 @@ const Sidebar = ({
             <nav className="flex-1 py-6 space-y-1">
                 {menuItems.map((item) => {
                     const Icon = item.icon;
-                    const active = currentView === item.id || (item.id === 'career-intro' && currentView === 'career-hub');
+                    const active = currentView === item.id || 
+                                   (item.id === 'career-intro' && currentView === 'career-hub') ||
+                                   (item.id === 'dashboard' && (currentView === 'libertadores-intro' || currentView === 'libertadores-select' || currentView === 'libertadores-hub'));
                     return (
                         <button
                             key={item.id}
@@ -304,6 +308,12 @@ export default function App() {
   const [careerTransferOffers, setCareerTransferOffers] = useState<Array<{name: string, color: string}>>([]);
   const [trophyFilterSeason, setTrophyFilterSeason] = useState<number | 'all'>('all');
 
+  // LIBERTADORES STATE
+  const [libertadoresData, setLibertadoresData] = useState<LibertadoresData | null>(null);
+  const [isLibertadoresMatch, setIsLibertadoresMatch] = useState(false);
+  const [showLibertadoresCelebration, setShowLibertadoresCelebration] = useState(false);
+  const [simulatingLibertadores, setSimulatingLibertadores] = useState(false);
+
   // Renewals Log State
   const [renewedLog, setRenewedLog] = useState<{playerName: string, weeks: number, weekRenewer: number}[]>([]);
 
@@ -380,6 +390,31 @@ export default function App() {
     }
   };
 
+  const handleLibertadoresSelect = async (team: Team) => {
+      setLoading(true);
+      try {
+          // Use same squad generation as normal for simplicity
+          const players = await generateSquadForTeam(team.name);
+          setUserTeam(team);
+          setSquad(players);
+          
+          const groups = generateLibertadoresGroups(team.name);
+          setLibertadoresData({
+              myTeam: team,
+              currentGroupIndex: 0,
+              groups: groups,
+              history: []
+          });
+
+          setSocialPosts(generateSocialFeed());
+          setView('libertadores-hub');
+      } catch (error) {
+          console.error("Failed", error);
+      } finally {
+          setLoading(false);
+      }
+  };
+
   // --- Helper Functions ---
 
   const addTransaction = (type: Transaction['type'], description: string, amount: number) => {
@@ -434,6 +469,65 @@ export default function App() {
   }
 
   const updateLeagueTable = (result: MatchResult) => {
+       if (isLibertadoresMatch) {
+           // Lógica Específica da Libertadores (Update Data)
+           setLibertadoresData(prev => {
+               if (!prev) return null;
+               
+               const newGroups = [...prev.groups];
+               const currentGroup = newGroups[prev.currentGroupIndex];
+               
+               // Encontrar o oponente que acabamos de jogar (o primeiro não jogado)
+               const oppIndex = currentGroup.opponents.findIndex(o => !o.played && o.team.name === result.opponentName);
+               
+               if (oppIndex >= 0) {
+                   currentGroup.opponents[oppIndex] = {
+                       ...currentGroup.opponents[oppIndex],
+                       played: true,
+                       result: `${result.homeScore} - ${result.awayScore}`,
+                       win: result.win
+                   };
+                   
+                   // Verificar se grupo acabou
+                   if (currentGroup.opponents.every(o => o.played)) {
+                       currentGroup.completed = true;
+                       if (prev.currentGroupIndex < prev.groups.length - 1) {
+                           // Avançar grupo
+                           // Opcional: Feedback visual de grupo concluído
+                           setTimeout(() => alert(`Grupo ${currentGroup.name} Concluído! Avançando...`), 500);
+                           return {
+                               ...prev,
+                               groups: newGroups,
+                               currentGroupIndex: prev.currentGroupIndex + 1
+                           };
+                       } else {
+                            // Campeão da Copa das Américas!
+                            setTrophies(prevT => {
+                                if (!prevT.find(t => t.name === 'Copa das Américas')) {
+                                    return [...prevT, { 
+                                        id: `lib-${Date.now()}`, 
+                                        name: 'Copa das Américas', 
+                                        year: 1, 
+                                        competition: 'Continental' 
+                                    }];
+                                }
+                                return prevT;
+                            });
+                            setShowLibertadoresCelebration(true);
+                       }
+                   }
+               }
+
+               return {
+                   ...prev,
+                   groups: newGroups
+               };
+           });
+           
+           setIsLibertadoresMatch(false);
+           return;
+       }
+
        let updatedUserStats: TeamStats | null = null;
 
        setLeagueTable(prev => {
@@ -477,8 +571,7 @@ export default function App() {
        
        setWeek(w => w + 1);
 
-       // Trophy check (using the local variable captured from the map loop)
-       // We use a timeout to let the state update settle or just use the local var
+       // Trophy check
        setTimeout(() => {
            if (updatedUserStats) {
                if (updatedUserStats.points >= 38) {
@@ -525,12 +618,37 @@ export default function App() {
 
   // --- Match Simulation Logic ---
   
-  const startMatch = async () => {
-      const opponents = leagueTable.filter(t => t.id !== userTeam?.id);
-      const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
-      const opponentTeam: Team = { id: randomOpponent.id, name: randomOpponent.name, primaryColor: 'bg-slate-600', secondaryColor: 'text-white' };
+  const startMatch = async (overrideOpponent?: Team, isLibertadores = false) => {
+      let opponentTeam: Team;
+
+      if (overrideOpponent) {
+          opponentTeam = overrideOpponent;
+          setIsLibertadoresMatch(isLibertadores);
+      } else {
+        const opponents = leagueTable.filter(t => t.id !== userTeam?.id);
+        const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
+        opponentTeam = { id: randomOpponent.id, name: randomOpponent.name, primaryColor: 'bg-slate-600', secondaryColor: 'text-white' };
+        setIsLibertadoresMatch(false);
+      }
       
       setCurrentOpponent(opponentTeam);
+      
+      // Se for Libertadores, simula RÁPIDO e sem visual
+      if (isLibertadores) {
+          setSimulatingLibertadores(true);
+          // Passamos 'true' no final para isQuickSim
+          const result = await simulateMatchWithGemini(userTeam!, squad, opponentTeam, tactics, true);
+          setMatchEvents(result.events);
+          
+          updateLeagueTable(result);
+          setSimulatingLibertadores(false);
+          
+          // Mostra resultado simples
+          alert(`FIM DE JOGO - COPA DAS AMÉRICAS\n\n${userTeam!.name} ${result.homeScore} x ${result.awayScore} ${opponentTeam.name}\n\n${result.summary}`);
+          return;
+      }
+
+      // Se for jogo normal, prepara visual
       setPreparingVisualMatch(true);
       
       // Use Gemini to generate result, PASSING TACTICS now
@@ -633,6 +751,17 @@ export default function App() {
                  </div>
              </button>
 
+             {/* LIBERTADORES BUTTON */}
+             <button onClick={() => setView(libertadoresData ? 'libertadores-hub' : 'libertadores-select')} className="p-6 bg-gradient-to-br from-yellow-700 to-yellow-900 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px] group hover:scale-[1.02] transition-transform relative overflow-hidden border border-yellow-600/50">
+                 <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                 <div className="relative z-10"><Globe2 size={32} className="text-yellow-400" /></div>
+                 <div className="relative z-10 text-left mt-4">
+                     <p className="text-yellow-200 text-sm font-medium mb-1">Torneio Continental</p>
+                     <h3 className="text-xl md:text-2xl font-bold">Copa das Américas</h3>
+                     <p className="text-xs text-yellow-300/80 mt-1">Times Fictícios Exclusivos</p>
+                 </div>
+             </button>
+
              <button onClick={() => setView(careerData ? 'career-hub' : 'career-intro')} className="p-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px] group hover:scale-[1.02] transition-transform relative overflow-hidden">
                  <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
                  <div className="relative z-10"><Star size={32} className="text-yellow-300 fill-yellow-300" /></div>
@@ -651,15 +780,18 @@ export default function App() {
                      <p className="text-xs font-bold mt-1 bg-emerald-800/50 inline-block px-2 py-0.5 rounded">$ {budget.toFixed(1)}M</p>
                  </div>
              </button>
-
-             <button onClick={() => setView('trophies')} className="p-6 bg-gradient-to-br from-amber-100 to-amber-50 text-amber-900 border border-amber-200 rounded-2xl shadow-sm hover:border-amber-500 transition-colors flex flex-col justify-between min-h-[160px] relative overflow-hidden">
-                 <div className="p-3 bg-white/60 text-amber-600 rounded-xl w-fit backdrop-blur-sm"><Award size={28} /></div>
-                 <div className="text-left relative z-10 mt-4">
-                     <p className="text-amber-700 text-sm font-medium mb-1">Conquistas</p>
-                     <h3 className="text-xl font-bold">Sala de Troféus</h3>
-                     <p className="text-xs text-amber-600 font-bold mt-1">{trophies.length} Taças</p>
+             
+              {/* TROPHY BUTTON (NEW) */}
+             <button onClick={() => setView('trophies')} className="p-6 bg-amber-500 text-white rounded-2xl shadow-lg hover:bg-amber-600 transition-colors flex flex-col justify-between min-h-[160px] relative overflow-hidden col-span-1 sm:col-span-2">
+                 <div className="absolute top-0 right-0 p-24 bg-white/20 rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none"></div>
+                 <div className="relative z-10"><Award size={28} /></div>
+                 <div className="relative z-10 text-left mt-4 flex justify-between items-end">
+                     <div>
+                        <p className="text-amber-100 text-sm font-medium mb-1">Conquistas</p>
+                        <h3 className="text-xl font-bold">Sala de Troféus</h3>
+                     </div>
+                     <span className="text-3xl font-bold opacity-50">{trophies.length}</span>
                  </div>
-                 <Trophy size={100} className="absolute -bottom-4 -right-4 text-amber-200/50" />
              </button>
         </div>
 
@@ -732,6 +864,181 @@ export default function App() {
     </div>
   );
 
+  const renderLibertadoresSelect = () => {
+      const teams = getLibertadoresTeams();
+      return (
+        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6 overflow-y-auto">
+          <div className="text-center mb-8 md:mb-10 mt-4">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                  <Globe2 size={40} className="text-yellow-400" />
+                  <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight uppercase">Copa das <span className="text-yellow-400">Américas</span></h1>
+              </div>
+            <p className="text-slate-400 text-sm md:text-base">Escolha seu representante continental</p>
+          </div>
+          <button onClick={() => setView('dashboard')} className="mb-6 text-slate-400 hover:text-white flex items-center gap-2"><ArrowLeftRight /> Voltar ao Início</button>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 w-full max-w-5xl pb-8">
+            {teams.map((team) => (
+              <button
+                key={team.id}
+                onClick={() => handleLibertadoresSelect(team)}
+                disabled={!!loading}
+                className={`
+                    relative group overflow-hidden rounded-xl p-4 md:p-6 transition-all duration-300
+                    bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-yellow-500
+                    flex flex-col items-center gap-3 md:gap-4
+                    ${loading === team.id ? 'ring-2 ring-yellow-500' : ''}
+                `}
+              >
+                <div className={`w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center text-lg md:text-xl font-bold shadow-lg ${team.primaryColor} ${team.secondaryColor}`}>
+                   {team.name.substring(0, 3).toUpperCase()}
+                </div>
+                <span className="font-semibold text-white text-sm md:text-base group-hover:text-yellow-400 transition-colors truncate w-full text-center">{team.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+  };
+
+  const renderLibertadoresHub = () => {
+      if (!libertadoresData) return null;
+      
+      const currentGroup = libertadoresData.groups[libertadoresData.currentGroupIndex];
+      const nextOpponentIndex = currentGroup.opponents.findIndex(o => !o.played);
+      const nextOpponent = nextOpponentIndex !== -1 ? currentGroup.opponents[nextOpponentIndex] : null;
+
+      return (
+          <div className="p-4 md:p-8 pb-24 min-h-screen bg-slate-900 text-white relative">
+              {/* LOADING OVERLAY FOR QUICK SIM */}
+              {simulatingLibertadores && (
+                  <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center">
+                      <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-yellow-500 mb-4"></div>
+                      <h3 className="text-2xl font-bold text-white animate-pulse">Simulando Partida...</h3>
+                  </div>
+              )}
+
+              {showLibertadoresCelebration && (
+                  <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center animate-in fade-in duration-1000 p-8 text-center">
+                      <div className="animate-bounce mb-8">
+                          <Crown size={120} className="text-yellow-400 drop-shadow-[0_0_50px_rgba(250,204,21,0.8)]" />
+                      </div>
+                      <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 mb-6 uppercase tracking-tighter">
+                          SEU TIME FOI CAMPEÃO!
+                      </h1>
+                      <div className="flex items-center gap-6 mb-12">
+                           <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold shadow-2xl border-4 border-yellow-400 ${libertadoresData.myTeam.primaryColor} ${libertadoresData.myTeam.secondaryColor}`}>
+                               {libertadoresData.myTeam.name.substring(0, 2)}
+                           </div>
+                           <div className="text-left">
+                               <p className="text-2xl font-bold text-white">{libertadoresData.myTeam.name}</p>
+                               <p className="text-yellow-400">Reis da América</p>
+                           </div>
+                      </div>
+                      <p className="text-slate-400 mb-8 max-w-md">O troféu foi adicionado à sua galeria. Parabéns pela campanha histórica!</p>
+                      <button 
+                          onClick={() => { setShowLibertadoresCelebration(false); setView('trophies'); setLibertadoresData(null); }}
+                          className="px-8 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xl rounded-full shadow-lg transition-transform hover:scale-105"
+                      >
+                          VER SALA DE TROFÉUS
+                      </button>
+                      {/* Simple confetti dots */}
+                      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                          {[...Array(20)].map((_, i) => (
+                              <div key={i} className="absolute w-3 h-3 rounded-full animate-ping" style={{ 
+                                  backgroundColor: ['#facc15', '#ef4444', '#3b82f6', '#ffffff'][i % 4],
+                                  top: `${Math.random() * 100}%`, left: `${Math.random() * 100}%`,
+                                  animationDuration: `${1 + Math.random() * 2}s`,
+                                  animationDelay: `${Math.random()}s`
+                              }}></div>
+                          ))}
+                      </div>
+                  </div>
+              )}
+
+              <div className="max-w-4xl mx-auto">
+                  <div className="flex justify-between items-center mb-8">
+                      <div className="flex items-center gap-4">
+                           <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg ${libertadoresData.myTeam.primaryColor} ${libertadoresData.myTeam.secondaryColor}`}>
+                               {libertadoresData.myTeam.name.substring(0, 2)}
+                           </div>
+                           <div>
+                               <h2 className="text-3xl font-bold">{libertadoresData.myTeam.name}</h2>
+                               <p className="text-yellow-400 font-bold uppercase tracking-widest text-sm">Rumo à Glória Eterna</p>
+                           </div>
+                      </div>
+                      <button onClick={() => { setView('dashboard'); setLibertadoresData(null); }} className="px-4 py-2 border border-slate-600 rounded-lg hover:bg-slate-800 text-sm">Sair da Copa</button>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      {/* Left Column: Progress */}
+                      <div className="lg:col-span-2 space-y-6">
+                           <div className="bg-slate-800 rounded-2xl p-6 border border-yellow-500/30 shadow-[0_0_30px_rgba(234,179,8,0.1)]">
+                                <h3 className="text-2xl font-bold mb-4 flex items-center justify-between">
+                                    <span>{currentGroup.name}</span>
+                                    <span className="text-sm bg-black/40 px-3 py-1 rounded-full text-slate-400">Fase {libertadoresData.currentGroupIndex + 1} de {libertadoresData.groups.length}</span>
+                                </h3>
+                                
+                                <div className="space-y-3">
+                                    {currentGroup.opponents.map((opp, idx) => (
+                                        <div key={idx} className={`flex items-center justify-between p-4 rounded-xl border ${opp.played ? 'bg-black/20 border-slate-700' : idx === nextOpponentIndex ? 'bg-slate-700 border-yellow-500/50' : 'bg-slate-800/50 border-slate-800 opacity-50'}`}>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold text-white">
+                                                    {idx + 1}
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${opp.team.primaryColor}`}>
+                                                        {opp.team.name.substring(0, 1)}
+                                                    </div>
+                                                    <span className={`font-bold ${idx === nextOpponentIndex ? 'text-white' : 'text-slate-400'}`}>{opp.team.name}</span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                {opp.played ? (
+                                                    <span className={`font-bold font-mono px-3 py-1 rounded ${opp.win ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'}`}>{opp.result}</span>
+                                                ) : idx === nextOpponentIndex ? (
+                                                    <span className="text-xs font-bold text-yellow-400 animate-pulse">PRÓXIMO</span>
+                                                ) : (
+                                                    <Lock size={16} className="text-slate-600" />
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                           </div>
+
+                           {nextOpponent && (
+                               <button 
+                                   onClick={() => startMatch(nextOpponent.team, true)}
+                                   disabled={simulatingLibertadores}
+                                   className="w-full py-6 bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-500 hover:to-yellow-600 text-white rounded-2xl font-black text-xl shadow-lg transform transition hover:scale-[1.01] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                               >
+                                   <PlayCircle size={28} />
+                                   JOGAR CONTRA {nextOpponent.team.name.toUpperCase()}
+                               </button>
+                           )}
+                      </div>
+
+                      {/* Right Column: Squad & Info */}
+                      <div className="space-y-6">
+                           <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                               <h4 className="font-bold text-slate-400 uppercase text-xs mb-4">Seu Elenco</h4>
+                               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                   {squad.map(p => (
+                                       <div key={p.id} className="flex justify-between items-center text-sm p-2 bg-slate-700/50 rounded">
+                                           <span>{p.name}</span>
+                                           <span className={`font-bold ${p.rating >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>{p.rating}</span>
+                                       </div>
+                                   ))}
+                               </div>
+                           </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   const renderMatch = () => {
       if (preparingVisualMatch || isVisualMatch) {
           return (
@@ -746,7 +1053,7 @@ export default function App() {
                           <div className="text-3xl font-black font-mono bg-black/50 px-6 py-2 rounded-lg border border-white/10 shadow-inner">{currentScore.home} - {currentScore.away}</div>
                           <div className="flex items-center gap-4 w-1/3 justify-end">
                               <span className="font-bold text-lg hidden md:inline">{currentOpponent?.name}</span>
-                              <div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center font-bold text-white">{currentOpponent?.name.substring(0,2)}</div>
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${currentOpponent?.primaryColor || 'bg-slate-600'}`}>{currentOpponent?.name.substring(0,2)}</div>
                           </div>
                       </div>
                       
@@ -817,7 +1124,7 @@ export default function App() {
                           <span className="text-2xl font-bold text-slate-300">VS</span>
                           <div className="w-16 h-16 rounded-full bg-slate-600 flex items-center justify-center font-bold text-white text-xl">?</div>
                       </div>
-                      <button onClick={startMatch} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 transition-transform hover:scale-105 shadow-lg shadow-emerald-200">
+                      <button onClick={() => startMatch()} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 transition-transform hover:scale-105 shadow-lg shadow-emerald-200">
                           Iniciar Partida
                       </button>
                   </div>
@@ -899,7 +1206,10 @@ export default function App() {
 
   const renderTrophies = () => (
       <div className="p-4 md:p-8 pb-24">
-          <h2 className="text-2xl font-bold text-slate-800 mb-6">Sala de Troféus</h2>
+          <div className="flex items-center gap-3 mb-6">
+              <button onClick={() => setView('dashboard')} className="p-2 bg-slate-200 rounded-lg hover:bg-slate-300 md:hidden"><ArrowLeftRight size={20} /></button>
+              <h2 className="text-2xl font-bold text-slate-800">Sala de Troféus</h2>
+          </div>
           {trophies.length === 0 ? (
               <div className="text-center py-20 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300">
                   <Trophy size={64} className="mx-auto text-slate-300 mb-4" />
@@ -1043,6 +1353,7 @@ export default function App() {
   );
 
   if (view === 'select-team') return <TeamSelection onSelect={handleTeamSelect} />;
+  if (view === 'libertadores-select') return renderLibertadoresSelect();
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900 flex flex-col lg:flex-row">
@@ -1058,6 +1369,7 @@ export default function App() {
         {view === 'social' && renderSocial()}
         {view === 'career-intro' && renderCareerIntro()}
         {view === 'career-hub' && renderCareerHub()}
+        {view === 'libertadores-hub' && renderLibertadoresHub()}
       </main>
 
       <MobileNav currentView={view} onChangeView={setView} team={userTeam} />

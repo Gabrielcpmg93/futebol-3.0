@@ -1,5 +1,5 @@
 
-import { Player, Position, MatchResult, Team, SocialPost } from '../types';
+import { Player, Position, MatchResult, Team, SocialPost, LibGroup, LibOpponent } from '../types';
 
 // --- MOCK DATA GENERATORS (OFFLINE LOGIC) ---
 
@@ -21,6 +21,98 @@ const FICTIONAL_TEAMS = [
   "Brazuca Juniors", "Nova Era FC", "Leões da Serra", "Guardiões da Bola", "Trovão Azul",
   "Inter do Bairro", "Cometa FC", "Gigantes da Norte", "Samba FC", "Imperial United"
 ];
+
+// --- LIBERTADORES DATA ---
+// Mapeamento: Nome Real -> Nome Fictício + Cores
+const LIBERTADORES_DB = [
+    { real: "Deportivo Táchira", fake: "Táchira Aurinegro", color: "bg-yellow-500", sec: "text-black" },
+    { real: "Carabobo", fake: "Valência Vinho", color: "bg-red-900", sec: "text-white" },
+    { real: "Peñarol", fake: "Carboneros FC", color: "bg-yellow-400", sec: "text-black" },
+    { real: "Alianza Lima", fake: "Aliança Real", color: "bg-blue-900", sec: "text-white" },
+    { real: "Sporting Cristal", fake: "Cervejeiros SC", color: "bg-sky-400", sec: "text-white" },
+    { real: "Universitário", fake: "Creme e Guindas", color: "bg-orange-100", sec: "text-red-900" },
+    { real: "Nacional", fake: "Montevidéu Tricolor", color: "bg-blue-700", sec: "text-white" },
+    { real: "Cerro Porteño", fake: "Ciclón do Bairro", color: "bg-red-700", sec: "text-blue-700" },
+    { real: "Olimpia", fake: "Rei de Copas", color: "bg-black", sec: "text-white" },
+    { real: "Libertad", fake: "Gumarelo FC", color: "bg-black", sec: "text-white" },
+    { real: "Barcelona de Guayaquil", fake: "Touro Amarelo", color: "bg-yellow-400", sec: "text-black" },
+    { real: "Independiente del Valle", fake: "Negriazul do Vale", color: "bg-blue-900", sec: "text-pink-500" },
+    { real: "LDU Quito", fake: "Liga Universitária", color: "bg-white", sec: "text-red-600" },
+    { real: "Atlético Nacional", fake: "Verdolaga FC", color: "bg-green-600", sec: "text-white" },
+    { real: "Atlético Bucaramanga", fake: "Leopardos do Sul", color: "bg-yellow-400", sec: "text-green-800" },
+    { real: "Universidad de Chile", fake: "La U Romântica", color: "bg-blue-600", sec: "text-red-600" },
+    { real: "Colo-Colo", fake: "Cacique Santiago", color: "bg-white", sec: "text-black" },
+    { real: "Bolívar", fake: "Academia Celeste", color: "bg-sky-500", sec: "text-white" },
+    { real: "San Antonio Bulo Bulo", fake: "Santo Antônio FC", color: "bg-green-500", sec: "text-white" },
+    { real: "Flamengo", fake: "Urubu Rei", color: "bg-red-600", sec: "text-black" },
+    { real: "Cruzeiro", fake: "Raposa Celeste", color: "bg-blue-600", sec: "text-white" },
+    { real: "Bahia", fake: "Tricolor de Aço", color: "bg-blue-500", sec: "text-red-500" },
+    { real: "São Paulo", fake: "Soberano Paulista", color: "bg-red-600", sec: "text-white" },
+    { real: "Internacional", fake: "Colorado do Sul", color: "bg-red-600", sec: "text-white" },
+    { real: "Fortaleza", fake: "Leão do Pici", color: "bg-blue-700", sec: "text-red-600" },
+    { real: "Palmeiras", fake: "Porco Verde", color: "bg-green-600", sec: "text-white" },
+    { real: "Botafogo", fake: "Estrela Solitária", color: "bg-black", sec: "text-white" },
+    { real: "River Plate", fake: "Prata de Buenos Aires", color: "bg-white", sec: "text-red-600" },
+    { real: "Talleres", fake: "Matador de Córdova", color: "bg-blue-900", sec: "text-white" },
+    { real: "Central de Córdoba", fake: "Ferroviário Central", color: "bg-black", sec: "text-white" },
+    { real: "Racing", fake: "Academia Racing", color: "bg-sky-300", sec: "text-white" },
+    { real: "Estudiantes", fake: "Estudantes de La Plata", color: "bg-red-600", sec: "text-white" },
+    { real: "Vélez Sarsfield", fake: "Fortim Velez", color: "bg-blue-800", sec: "text-white" }
+];
+
+export const getLibertadoresTeams = (): Team[] => {
+    return LIBERTADORES_DB.map((t, idx) => ({
+        id: `lib-${idx}`,
+        name: t.fake,
+        primaryColor: t.color,
+        secondaryColor: t.sec
+    }));
+};
+
+export const generateLibertadoresGroups = (userTeamName: string): LibGroup[] => {
+    const allTeams = getLibertadoresTeams();
+    // Remover o time do usuário da lista de oponentes
+    const opponents = allTeams.filter(t => t.name !== userTeamName);
+    
+    // Embaralhar
+    const shuffled = [...opponents].sort(() => 0.5 - Math.random());
+    
+    const groups: LibGroup[] = [];
+    const groupNames = ['A', 'B', 'C', 'D', 'E', 'F'];
+    
+    // Criar grupos de 5
+    let currentIndex = 0;
+    for (const name of groupNames) {
+        const groupOpponents: LibOpponent[] = [];
+        for (let i = 0; i < 5; i++) {
+            if (currentIndex < shuffled.length) {
+                groupOpponents.push({
+                    team: shuffled[currentIndex],
+                    played: false
+                });
+                currentIndex++;
+            }
+        }
+        groups.push({ name: `Grupo ${name}`, opponents: groupOpponents, completed: false });
+    }
+
+    // Se sobrarem times (total 33 - 1 user = 32. 6 grupos de 5 = 30. Sobram 2).
+    // Adicionar Grupo Final ou distribuir. Vamos criar um Grupo G (Final Stage)
+    if (currentIndex < shuffled.length) {
+         const finalOpponents: LibOpponent[] = [];
+         while(currentIndex < shuffled.length) {
+             finalOpponents.push({
+                team: shuffled[currentIndex],
+                played: false
+            });
+            currentIndex++;
+         }
+         groups.push({ name: 'Grupo Final', opponents: finalOpponents, completed: false });
+    }
+
+    return groups;
+};
+
 
 const SOCIAL_CAPTIONS = [
     "Focado no próximo desafio! 💪⚽ #Treino #Futebol",
@@ -153,9 +245,10 @@ export const simulateMatchWithGemini = async (
     myTeam: Team, 
     mySquad: Player[], 
     opponent: Team,
-    tactics?: { formation: string, style: string, intensity: string }
+    tactics?: { formation: string, style: string, intensity: string },
+    isQuickSim: boolean = false
 ): Promise<MatchResult> => {
-  await delay(2000); // Simula a "IA" pensando e os 90 minutos
+  await delay(isQuickSim ? 500 : 2000); // Simula a "IA" pensando e os 90 minutos. Rápido se for quickSim.
 
   // 1. Calcular força base dos times
   let myAvg = mySquad.reduce((acc, p) => acc + p.rating, 0) / (mySquad.length || 1);

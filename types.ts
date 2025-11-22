@@ -110,7 +110,28 @@ export interface CareerData {
   trophies: CareerTrophy[]; // List of earned trophies in career
 }
 
-export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'standings' | 'trophies' | 'settings' | 'social' | 'career-intro' | 'career-hub';
+// --- LIBERTADORES TYPES ---
+export interface LibOpponent {
+    team: Team;
+    played: boolean;
+    result?: string; // "3-1", "0-2", etc.
+    win?: boolean;
+}
+
+export interface LibGroup {
+    name: string; // "Grupo A"
+    opponents: LibOpponent[];
+    completed: boolean;
+}
+
+export interface LibertadoresData {
+    myTeam: Team;
+    currentGroupIndex: number;
+    groups: LibGroup[];
+    history: string[];
+}
+
+export type ViewState = 'select-team' | 'dashboard' | 'squad' | 'market' | 'match' | 'standings' | 'trophies' | 'settings' | 'social' | 'career-intro' | 'career-hub' | 'libertadores-intro' | 'libertadores-select' | 'libertadores-hub';
 
 export const BRAZILIAN_TEAMS: Team[] = [
   { id: 'fla', name: 'Flamengo', primaryColor: 'bg-red-600', secondaryColor: 'text-black' },
