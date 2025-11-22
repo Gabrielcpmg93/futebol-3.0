@@ -738,7 +738,9 @@ export default function App() {
               season: 1,
               trophies: []
           });
+          // CORREÇÃO CRÍTICA: Atualizar view para o hub ao mesmo tempo que o step
           setCareerStep('hub');
+          setView('career-hub');
       }, 3000); // 3 segundos de "assinatura"
   };
 
