@@ -1,46 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData, SocialComment, Transaction, LibertadoresData, LibOpponent } from './types';
-import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateFictionalTeamName, getFictionalLeagueNames, generateSocialFeed, getLibertadoresTeams, generateLibertadoresGroups } from './services/geminiService';
+import { BRAZILIAN_TEAMS, Team, Player, ViewState, MatchResult, Position, TeamStats, Trophy as TrophyType, SocialPost, CareerData, Transaction, LibertadoresData, LibOpponent } from './types';
+import { generateSquadForTeam, generateTransferMarket, simulateMatchWithGemini, generateFictionalTeamName, getFictionalLeagueNames, generateSocialFeed, getLibertadoresTeams, generateLibertadoresGroups, generateLoanOffers, generateCareerOffers } from './services/geminiService';
 import { Card } from './components/Card';
 import { PlayerRow } from './components/PlayerRow';
 import { 
-    LayoutDashboard, 
-    Users, 
-    ArrowLeftRight, 
-    PlayCircle, 
-    DollarSign,
-    Activity,
-    Trophy,
-    Star,
-    ListOrdered,
-    Settings,
-    Award,
-    Briefcase,
-    MonitorPlay,
-    Zap,
-    Handshake,
-    CheckCircle,
-    Shield,
-    MoveRight,
-    Timer,
-    Smartphone,
-    Heart,
-    MessageCircle,
-    ShoppingBag,
-    Wallet,
-    Shirt,
-    Crown,
-    Filter,
-    X,
-    User,
-    Target,
-    FileText,
-    BarChart3,
-    CalendarClock,
-    Send,
-    Globe2,
-    Lock
+    LayoutDashboard, Users, ArrowLeftRight, PlayCircle, DollarSign, Activity, Trophy, Star, ListOrdered, Settings, Award, Briefcase, MonitorPlay, Zap, Handshake, CheckCircle, Shield, MoveRight, Timer, Smartphone, Heart, MessageCircle, ShoppingBag, Wallet, Shirt, Crown, X, User, Target, BarChart3, CalendarClock, Send, Globe2, Lock, PenTool, ArrowLeft, ThumbsUp, Medal
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -90,15 +55,7 @@ const TeamSelection = ({ onSelect }: { onSelect: (team: Team) => void }) => {
   );
 };
 
-const Sidebar = ({ 
-    currentView, 
-    onChangeView, 
-    team
-}: { 
-    currentView: ViewState, 
-    onChangeView: (v: ViewState) => void, 
-    team: Team | null
-}) => {
+const Sidebar = ({ currentView, onChangeView, team }: { currentView: ViewState, onChangeView: (v: ViewState) => void, team: Team | null }) => {
     const menuItems = [
         { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
         { id: 'social', label: 'Rede Social', icon: MessageCircle },
@@ -144,14 +101,7 @@ const Sidebar = ({
     );
 };
 
-const MobileNav = ({ 
-    currentView, 
-    onChangeView
-}: { 
-    currentView: ViewState, 
-    onChangeView: (v: ViewState) => void, 
-    team: Team | null
-}) => {
+const MobileNav = ({ currentView, onChangeView }: { currentView: ViewState, onChangeView: (v: ViewState) => void, team: Team | null }) => {
     const menuItems = [
         { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
         { id: 'social', label: 'Rede Social', icon: MessageCircle },
@@ -184,97 +134,73 @@ const MobileNav = ({
     );
 };
 
-// --- 2D Field Component ---
-const SoccerField = ({ 
-    homeTeam, 
-    awayTeam, 
-    gameTime, 
-    ballPos, 
-    homePositions, 
-    awayPositions 
-}: { 
-    homeTeam: Team, 
-    awayTeam: Team, 
-    gameTime: number, 
-    ballPos: {x: number, y: number},
-    homePositions: {x: number, y: number}[],
-    awayPositions: {x: number, y: number}[]
-}) => {
+const SoccerField = ({ homeTeam, awayTeam, gameTime, ballPos, homePositions, awayPositions, activeTactic }: any) => {
     return (
-        <div className="w-full aspect-[16/9] bg-[#2a8a3d] rounded-lg relative overflow-hidden border-[6px] border-slate-800 shadow-2xl select-none">
-            {/* Grass Pattern (Stripes) */}
-            <div className="absolute inset-0 opacity-20 pointer-events-none" 
-                 style={{ 
-                     backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 5%, #000 5%, #000 10%)',
-                     backgroundSize: '100% 100%'
-                 }}>
-            </div>
-
-            {/* Field Lines */}
-            <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/60 transform -translate-x-1/2 z-0"></div>
-            <div className="absolute top-1/2 left-1/2 w-20 h-20 md:w-32 md:h-32 border-2 border-white/60 rounded-full transform -translate-x-1/2 -translate-y-1/2 z-0"></div>
-            <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-white rounded-full transform -translate-x-1/2 -translate-y-1/2 z-0"></div>
-            <div className="absolute top-0 left-0 w-full h-full border-2 border-white/60 m-2 md:m-4 box-border pointer-events-none z-0" style={{ width: 'calc(100% - 16px)', height: 'calc(100% - 16px)' }}></div>
-            
-            {/* Areas */}
-            <div className="absolute top-1/2 left-0 w-[14%] h-[40%] border-2 border-white/60 bg-transparent transform -translate-y-1/2 ml-2 md:ml-4 z-0"></div>
-            <div className="absolute top-1/2 right-0 w-[14%] h-[40%] border-2 border-white/60 bg-transparent transform -translate-y-1/2 mr-2 md:mr-4 z-0"></div>
-
-            {/* Players - Home */}
-            {homePositions.map((pos, i) => (
-                <div 
-                    key={`home-${i}`}
-                    className={`absolute w-3 h-3 md:w-5 md:h-5 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.3)] border-2 border-white transition-all duration-700 ease-in-out z-10 flex items-center justify-center text-[6px] text-white font-bold ${homeTeam.primaryColor}`}
-                    style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
-                >
+        <div className="relative w-full max-w-4xl mx-auto">
+             {/* Field Container */}
+            <div className="w-full aspect-[16/9] bg-[#2e8b57] rounded-lg relative overflow-hidden border-[6px] border-slate-800 shadow-2xl select-none group">
+                {/* Grass Pattern */}
+                <div className="absolute inset-0 pointer-events-none opacity-30" 
+                     style={{ 
+                         backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 5%, #1a5e3a 5%, #1a5e3a 10%)', 
+                         backgroundSize: '100% 100%' 
+                     }}>
                 </div>
-            ))}
 
-            {/* Players - Away */}
-            {awayPositions.map((pos, i) => (
-                <div 
-                    key={`away-${i}`}
-                    className={`absolute w-3 h-3 md:w-5 md:h-5 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.3)] border-2 border-white transition-all duration-700 ease-in-out z-10 flex items-center justify-center text-[6px] ${awayTeam.primaryColor} ${awayTeam.secondaryColor === 'text-white' ? 'text-white' : 'text-black'}`}
-                    style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
-                >
+                {/* Lines */}
+                <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/50 transform -translate-x-1/2 z-0"></div>
+                <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white/50 rounded-full transform -translate-x-1/2 -translate-y-1/2 z-0"></div>
+                <div className="absolute top-0 left-0 w-full h-full border-2 border-white/50 m-4 box-border pointer-events-none z-0" style={{ width: 'calc(100% - 32px)', height: 'calc(100% - 32px)' }}></div>
+                
+                {/* Players */}
+                {homePositions.map((pos: any, i: number) => (
+                    <div key={`home-${i}`} className={`absolute w-4 h-4 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.4)] border border-white z-10 flex items-center justify-center text-[8px] text-white font-bold ${homeTeam.primaryColor} transition-all duration-500 ease-linear`} style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}></div>
+                ))}
+                {awayPositions.map((pos: any, i: number) => (
+                    <div key={`away-${i}`} className={`absolute w-4 h-4 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.4)] border border-white z-10 flex items-center justify-center text-[8px] ${awayTeam.primaryColor} ${awayTeam.secondaryColor === 'text-white' ? 'text-white' : 'text-black'} transition-all duration-500 ease-linear`} style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}></div>
+                ))}
+                
+                {/* Ball */}
+                <div className="absolute w-2.5 h-2.5 bg-white rounded-full shadow-[0_2px_6px_rgba(0,0,0,0.5)] z-20 border border-slate-400 transition-all duration-300 ease-linear" style={{ left: `${ballPos.x}%`, top: `${ballPos.y}%`, transform: 'translate(-50%, -50%)' }}></div>
+                
+                {/* HUD */}
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-900/80 text-white px-4 py-1.5 rounded-full font-mono font-bold text-base backdrop-blur-sm flex items-center gap-3 border border-white/10 shadow-lg z-30">
+                    <Timer size={16} className="text-emerald-400" /><span>{gameTime}'</span>
                 </div>
-            ))}
-
-            {/* Ball */}
-            <div 
-                className="absolute w-2 h-2 md:w-3 md:h-3 bg-white rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.4)] z-20 transition-all duration-700 ease-in-out border border-slate-300 flex items-center justify-center"
-                style={{ left: `${ballPos.x}%`, top: `${ballPos.y}%`, transform: 'translate(-50%, -50%)' }}
-            >
-                <div className="w-full h-full rounded-full bg-[radial-gradient(circle_at_30%_30%,white,#ccc)]"></div>
-            </div>
-            
-            {/* Game Time Overlay */}
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-900/90 text-white px-4 py-1.5 rounded-full font-mono font-bold text-sm md:text-base backdrop-blur-sm flex items-center gap-3 border border-white/10 shadow-lg z-30">
-                <Timer size={16} className="text-emerald-400" />
-                <span>{gameTime}'</span>
+                
+                {activeTactic && (
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-emerald-500/90 text-white px-4 py-2 rounded-lg font-bold text-sm animate-bounce shadow-lg z-30">
+                       TÁTICA ATIVA: {activeTactic}
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-
-// Main App Component
 export default function App() {
   const [view, setView] = useState<ViewState>('select-team');
   const [userTeam, setUserTeam] = useState<Team | null>(null);
   const [squad, setSquad] = useState<Player[]>([]);
   const [market, setMarket] = useState<Player[]>([]);
-  const [budget, setBudget] = useState<number>(50); // Millions
-  const [transactions, setTransactions] = useState<Transaction[]>([]); // Financial History
+  const [budget, setBudget] = useState<number>(50); 
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [week, setWeek] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
   const [trophies, setTrophies] = useState<TrophyType[]>([]);
   const [showFinances, setShowFinances] = useState(false);
   
+  // Negotiation & Loans
+  const [negotiationType, setNegotiationType] = useState<'buy' | 'renew' | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [negotiationValues, setNegotiationValues] = useState<{salary: number, weeks: number}>({salary: 0, weeks: 0});
+  const [loanModalOpen, setLoanModalOpen] = useState(false);
+  const [loanOffers, setLoanOffers] = useState<{name: string, wageSplit: number}[]>([]);
+
   // Match State
   const [leagueTable, setLeagueTable] = useState<TeamStats[]>([]);
   const [isVisualMatch, setIsVisualMatch] = useState(false);
-  const [preparingVisualMatch, setPreparingVisualMatch] = useState(false); // To handle loading state audio
+  const [preparingVisualMatch, setPreparingVisualMatch] = useState(false);
   const [simTime, setSimTime] = useState(0);
   const [currentOpponent, setCurrentOpponent] = useState<Team | null>(null);
   const [currentScore, setCurrentScore] = useState({ home: 0, away: 0 });
@@ -282,95 +208,55 @@ export default function App() {
   const [homePlayerPos, setHomePlayerPos] = useState<{x:number, y:number}[]>([]);
   const [awayPlayerPos, setAwayPlayerPos] = useState<{x:number, y:number}[]>([]);
   const [matchEvents, setMatchEvents] = useState<any[]>([]);
-  const [lastEventIndex, setLastEventIndex] = useState(-1);
+  const [tactics, setTactics] = useState({ formation: '4-3-3', style: 'Equilibrado', intensity: 'Normal' });
+  const [activeIngameTactic, setActiveIngameTactic] = useState<string | null>(null);
 
-  // TACTICS STATE
-  const [tactics, setTactics] = useState({
-      formation: '4-3-3',
-      style: 'Equilibrado',
-      intensity: 'Normal'
-  });
-  const [tacticalFeedback, setTacticalFeedback] = useState('');
-
-  // Audio State
-  const [soundEnabled, setSoundEnabled] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // CAREER MODE STATE (Rumo ao Estrelato)
+  // Career & Social
   const [careerData, setCareerData] = useState<CareerData | null>(null);
+  const [careerStep, setCareerStep] = useState<'intro' | 'amateur-match' | 'offers' | 'signing' | 'hub'>('intro');
   const [careerTempName, setCareerTempName] = useState("");
   const [careerTempPos, setCareerTempPos] = useState<Position>(Position.ATT);
-  const [careerOffers, setCareerOffers] = useState<Array<{name: string, color: string}>>([]);
-  
-  const [showShop, setShowShop] = useState(false);
-  const [showContract, setShowContract] = useState(false);
-  const [showCareerTrophies, setShowCareerTrophies] = useState(false);
-  const [careerTransferOffers, setCareerTransferOffers] = useState<Array<{name: string, color: string}>>([]);
-  const [trophyFilterSeason, setTrophyFilterSeason] = useState<number | 'all'>('all');
+  const [careerOffersList, setCareerOffersList] = useState<Array<{name: string, color: string, salary: number}>>([]);
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
+  const [commentText, setCommentText] = useState<{[key: string]: string}>({});
+  const [simulatingCareer, setSimulatingCareer] = useState(false);
 
-  // LIBERTADORES STATE
+  // Libertadores (Copa dos Campeões)
   const [libertadoresData, setLibertadoresData] = useState<LibertadoresData | null>(null);
   const [isLibertadoresMatch, setIsLibertadoresMatch] = useState(false);
   const [showLibertadoresCelebration, setShowLibertadoresCelebration] = useState(false);
   const [simulatingLibertadores, setSimulatingLibertadores] = useState(false);
+  const [showLeagueChampion, setShowLeagueChampion] = useState(false);
 
-  // Renewals Log State
-  const [renewedLog, setRenewedLog] = useState<{playerName: string, weeks: number, weekRenewer: number}[]>([]);
-
-  // Social Feed State
-  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
-  const [commentText, setCommentText] = useState<{[key: string]: string}>({});
-
-  const shopItems = [
-      { id: 'phone', name: 'iPhone 15 Pro', price: 5000, icon: <Smartphone size={20} /> },
-      { id: 'boots', name: 'Chuteira Elite', price: 1200, icon: <Shirt size={20} /> },
-      { id: 'watch', name: 'Relógio de Luxo', price: 15000, icon: <Timer size={20} /> },
-      { id: 'car', name: 'Carro Esportivo', price: 150000, icon: <Zap size={20} /> },
-      { id: 'house', name: 'Apartamento', price: 500000, icon: <Briefcase size={20} /> },
-      { id: 'console', name: 'Videogame', price: 3500, icon: <MonitorPlay size={20} /> }
-  ];
-
-  // Logic to initialize table with FICTIONAL TEAMS + USER TEAM
-  const initializeTable = (selectedTeam: Team) => {
-      const fictionalNames = getFictionalLeagueNames(11); // Get 11 random fictional team names
-      const userStats: TeamStats = {
-          id: selectedTeam.id,
-          name: selectedTeam.name,
-          points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0
-      };
-      const opponentStats: TeamStats[] = fictionalNames.map((name, index) => ({
-          id: `fictional-${index}`,
-          name: name,
-          points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0
-      }));
-      setLeagueTable([userStats, ...opponentStats]);
-  };
-
-  // Audio Initialization
+  // Audio Logic
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
     const audio = new Audio('https://actions.google.com/sounds/v1/ambiences/stadium_crowd_cheering.ogg');
     audio.loop = true;
     audio.volume = 0.4;
     audioRef.current = audio;
-    audio.load();
-    return () => {
-        audio.pause();
-        audioRef.current = null;
-    };
+    return () => { audio.pause(); audioRef.current = null; };
   }, []);
 
-  // Manage Audio Playback
   useEffect(() => {
-    const shouldPlay = (isVisualMatch || preparingVisualMatch) && soundEnabled;
-    if (shouldPlay && audioRef.current) {
-         audioRef.current.play().catch(e => console.log(e));
-    } else if (!shouldPlay && audioRef.current) {
+    if ((isVisualMatch || preparingVisualMatch) && audioRef.current) {
+         audioRef.current.play().catch(() => {});
+    } else if (audioRef.current) {
         audioRef.current.pause();
     }
-  }, [isVisualMatch, preparingVisualMatch, soundEnabled]);
+  }, [isVisualMatch, preparingVisualMatch]);
 
+  const initializeTable = (selectedTeam: Team) => {
+      const fictionalNames = getFictionalLeagueNames(19); // Brasileirão 20 teams
+      const userStats: TeamStats = { id: selectedTeam.id, name: selectedTeam.name, points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0 };
+      const opponentStats: TeamStats[] = fictionalNames.map((name, index) => ({ 
+          id: `fictional-${index}`, 
+          name: name, 
+          points: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0 
+      }));
+      setLeagueTable([userStats, ...opponentStats]);
+  };
 
-  // Initialization logic
   const handleTeamSelect = async (team: Team) => {
     setLoading(true);
     try {
@@ -382,9 +268,7 @@ export default function App() {
         setView('dashboard');
         generateTransferMarket().then(setMarket);
     } catch (error) {
-        console.error("Failed to start game", error);
-        alert("Erro ao iniciar o jogo.");
-        setUserTeam(null);
+        console.error(error);
     } finally {
         setLoading(false);
     }
@@ -393,985 +277,699 @@ export default function App() {
   const handleLibertadoresSelect = async (team: Team) => {
       setLoading(true);
       try {
-          // Use same squad generation as normal for simplicity
           const players = await generateSquadForTeam(team.name);
           setUserTeam(team);
           setSquad(players);
-          
           const groups = generateLibertadoresGroups(team.name);
-          setLibertadoresData({
-              myTeam: team,
-              currentGroupIndex: 0,
-              groups: groups,
-              history: []
-          });
-
+          setLibertadoresData({ myTeam: team, currentGroupIndex: 0, groups: groups, history: [] });
           setSocialPosts(generateSocialFeed());
           setView('libertadores-hub');
-      } catch (error) {
-          console.error("Failed", error);
-      } finally {
-          setLoading(false);
-      }
+      } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
-  // --- Helper Functions ---
-
   const addTransaction = (type: Transaction['type'], description: string, amount: number) => {
-      const newTx: Transaction = {
-          id: Math.random().toString(36).substr(2, 9),
-          type,
-          description,
-          amount,
-          week
-      };
-      setTransactions(prev => [newTx, ...prev]);
+      setTransactions(prev => [{ id: Math.random().toString(36).substr(2, 9), type, description, amount, week }, ...prev]);
   };
 
   const handleSkipWeek = () => {
       setWeek(w => w + 1);
-      simulateWorldMatches();
-      setSquad(prev => prev.map(p => ({
-          ...p,
-          contractWeeks: Math.max(0, p.contractWeeks - 1)
-      })));
-  };
-
-  const simulateWorldMatches = () => {
-      setLeagueTable(prev => {
-           // Create a new array properly mapped to ensure state updates trigger re-render
-           return prev.map(t => {
-               if (t.id !== userTeam?.id) {
-                   if (Math.random() > 0.2) {
-                       const gf = Math.floor(Math.random() * 4);
-                       const ga = Math.floor(Math.random() * 4);
-                       let { points, won, drawn, lost } = t;
-                       
-                       if (gf > ga) { points += 3; won += 1; }
-                       else if (gf === ga) { points += 1; drawn += 1; }
-                       else { lost += 1; }
-                       
-                       return {
-                           ...t,
-                           played: t.played + 1,
-                           gf: t.gf + gf,
-                           ga: t.ga + ga,
-                           points,
-                           won,
-                           drawn,
-                           lost
-                       };
-                   }
-               }
-               return t;
-           });
+      setSquad(prev => prev.map(p => ({ ...p, contractWeeks: Math.max(0, p.contractWeeks - 1) })));
+      
+      // Simular jogos da liga em background
+      let newTable = leagueTable.map(t => {
+          if (t.id !== userTeam?.id) {
+               const gf = Math.floor(Math.random() * 4);
+               const ga = Math.floor(Math.random() * 4);
+               return { ...t, played: t.played + 1, gf: t.gf + gf, ga: t.ga + ga, points: t.points + (gf > ga ? 3 : gf === ga ? 1 : 0), won: t.won + (gf > ga ? 1 : 0), drawn: t.drawn + (gf === ga ? 1 : 0), lost: t.lost + (gf < ga ? 1 : 0) };
+          }
+          return t;
       });
-  }
-
-  const updateLeagueTable = (result: MatchResult) => {
-       if (isLibertadoresMatch) {
-           // Lógica Específica da Libertadores (Update Data)
-           setLibertadoresData(prev => {
-               if (!prev) return null;
-               
-               const newGroups = [...prev.groups];
-               const currentGroup = newGroups[prev.currentGroupIndex];
-               
-               // Encontrar o oponente que acabamos de jogar (o primeiro não jogado)
-               const oppIndex = currentGroup.opponents.findIndex(o => !o.played && o.team.name === result.opponentName);
-               
-               if (oppIndex >= 0) {
-                   currentGroup.opponents[oppIndex] = {
-                       ...currentGroup.opponents[oppIndex],
-                       played: true,
-                       result: `${result.homeScore} - ${result.awayScore}`,
-                       win: result.win
-                   };
-                   
-                   // Verificar se grupo acabou
-                   if (currentGroup.opponents.every(o => o.played)) {
-                       currentGroup.completed = true;
-                       if (prev.currentGroupIndex < prev.groups.length - 1) {
-                           // Avançar grupo
-                           // Opcional: Feedback visual de grupo concluído
-                           setTimeout(() => alert(`Grupo ${currentGroup.name} Concluído! Avançando...`), 500);
-                           return {
-                               ...prev,
-                               groups: newGroups,
-                               currentGroupIndex: prev.currentGroupIndex + 1
-                           };
-                       } else {
-                            // Campeão da Copa das Américas!
-                            setTrophies(prevT => {
-                                if (!prevT.find(t => t.name === 'Copa das Américas')) {
-                                    return [...prevT, { 
-                                        id: `lib-${Date.now()}`, 
-                                        name: 'Copa das Américas', 
-                                        year: 1, 
-                                        competition: 'Continental' 
-                                    }];
-                                }
-                                return prevT;
-                            });
-                            setShowLibertadoresCelebration(true);
-                       }
-                   }
-               }
-
-               return {
-                   ...prev,
-                   groups: newGroups
-               };
-           });
-           
-           setIsLibertadoresMatch(false);
-           return;
-       }
-
-       let updatedUserStats: TeamStats | null = null;
-
-       setLeagueTable(prev => {
-           return prev.map(t => {
-               // Update User Team
-               if (t.id === userTeam?.id) {
-                   const newStats = {
-                       ...t,
-                       played: t.played + 1,
-                       gf: t.gf + result.homeScore,
-                       ga: t.ga + result.awayScore,
-                       won: t.won + (result.homeScore > result.awayScore ? 1 : 0),
-                       drawn: t.drawn + (result.homeScore === result.awayScore ? 1 : 0),
-                       lost: t.lost + (result.homeScore < result.awayScore ? 1 : 0),
-                       points: t.points + (result.homeScore > result.awayScore ? 3 : (result.homeScore === result.awayScore ? 1 : 0))
-                   };
-                   updatedUserStats = newStats;
-                   return newStats;
-               }
-               
-               // Update Other teams (Simulation of concurrent games)
-               if (t.id !== userTeam?.id) {
-                   if (Math.random() > 0.5) {
-                       const gf = Math.floor(Math.random() * 4);
-                       const ga = Math.floor(Math.random() * 4);
-                       return {
-                           ...t,
-                           played: t.played + 1,
-                           gf: t.gf + gf,
-                           ga: t.ga + ga,
-                           won: t.won + (gf > ga ? 1 : 0),
-                           drawn: t.drawn + (gf === ga ? 1 : 0),
-                           lost: t.lost + (gf < ga ? 1 : 0),
-                           points: t.points + (gf > ga ? 3 : (gf === ga ? 1 : 0))
-                       };
-                   }
-               }
-               return t;
-           });
-       });
-       
-       setWeek(w => w + 1);
-
-       // Trophy check
-       setTimeout(() => {
-           if (updatedUserStats) {
-               if (updatedUserStats.points >= 38) {
-                   setTrophies(prev => {
-                       if (!prev.find(t => t.name === 'Melhor Técnico')) {
-                           alert("🏆 CONQUISTA: Melhor Técnico! (Atingiu 38 pontos)");
-                           return [...prev, { id: `manager-${Date.now()}`, name: 'Melhor Técnico', year: 1, competition: 'Brasileirão' }];
-                       }
-                       return prev;
-                   });
-               }
-               if (updatedUserStats.points >= 89) {
-                    setTrophies(prev => {
-                       if (!prev.find(t => t.name === 'Campeão Brasileiro')) {
-                           alert("🏆 É CAMPEÃO! O título é seu! (Atingiu 89 pontos)");
-                           return [...prev, { id: `champ-${Date.now()}`, name: 'Campeão Brasileiro', year: 1, competition: 'Série A' }];
-                       }
-                       return prev;
-                   });
-               }
-           }
-       }, 500);
+      
+      setLeagueTable(newTable);
+      checkLeagueChampion(newTable);
   };
 
-  const handleBuyPlayer = (player: Player) => {
-      if (budget >= player.value) {
-          setBudget(b => b - player.value);
-          setSquad(s => [...s, { ...player, team: userTeam?.name }]);
-          setMarket(m => m.filter(p => p.id !== player.id));
-          addTransaction('buy', `Compra de ${player.name}`, -player.value);
-          alert(`${player.name} contratado!`);
-      } else {
-          alert("Fundos insuficientes!");
+  const checkLeagueChampion = (table: TeamStats[]) => {
+      // Se o time do usuário completou 38 jogos
+      const myStats = table.find(t => t.id === userTeam?.id);
+      if (myStats && myStats.played >= 38) {
+          const sorted = [...table].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga));
+          if (sorted[0].id === userTeam?.id) {
+               if (!trophies.find(t => t.competition === 'Brasileirão' && t.year === 1)) {
+                   setTrophies(prev => [...prev, { id: `bras-${Date.now()}`, name: 'Campeão Nacional', year: 1, competition: 'Brasileirão' }]);
+                   setShowLeagueChampion(true);
+               }
+          }
       }
   };
 
   const handleSellPlayer = (player: Player) => {
-      const sellValue = player.value * 0.8; // Sell for slightly less
+      const sellValue = player.value * 0.8;
       setBudget(b => b + sellValue);
       setSquad(s => s.filter(p => p.id !== player.id));
       addTransaction('sell', `Venda de ${player.name}`, sellValue);
       alert(`${player.name} vendido por $${sellValue.toFixed(1)}M!`);
   };
-
-  // --- Match Simulation Logic ---
   
-  const startMatch = async (overrideOpponent?: Team, isLibertadores = false) => {
-      let opponentTeam: Team;
+  const openBuyModal = (player: Player) => {
+      setSelectedPlayer(player);
+      setNegotiationType('buy');
+      setNegotiationValues({ salary: player.salary || 20, weeks: 48 });
+  };
 
-      if (overrideOpponent) {
-          opponentTeam = overrideOpponent;
-          setIsLibertadoresMatch(isLibertadores);
-      } else {
+  const confirmPurchase = () => {
+      if (!selectedPlayer) return;
+      if (budget >= selectedPlayer.value) {
+          setBudget(b => b - selectedPlayer.value);
+          setSquad(s => [...s, { ...selectedPlayer, team: userTeam?.name, salary: negotiationValues.salary, contractWeeks: negotiationValues.weeks }]);
+          setMarket(m => m.filter(p => p.id !== selectedPlayer.id));
+          addTransaction('buy', `Compra de ${selectedPlayer.name}`, -selectedPlayer.value);
+          setNegotiationType(null); setSelectedPlayer(null);
+          alert(`${selectedPlayer.name} contratado!`);
+      } else { alert("Fundos insuficientes!"); }
+  };
+
+  const openRenewModal = (player: Player) => {
+      setSelectedPlayer(player);
+      setNegotiationType('renew');
+      setNegotiationValues({ salary: Math.floor((player.salary || 20) * 1.1), weeks: 52 });
+  };
+
+  const confirmRenewal = () => {
+      if (!selectedPlayer) return;
+      const bonus = selectedPlayer.value * 0.05;
+      if (budget >= bonus) {
+          setBudget(b => b - bonus);
+          setSquad(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, salary: negotiationValues.salary, contractWeeks: p.contractWeeks + negotiationValues.weeks } : p));
+          addTransaction('renewal', `Renovação ${selectedPlayer.name}`, -bonus);
+          setNegotiationType(null); setSelectedPlayer(null);
+          alert("Contrato Renovado!");
+      } else { alert(`Sem fundos para luvas ($${bonus.toFixed(1)}M)`); }
+  };
+
+  const openLoanModal = async (player: Player) => {
+      setSelectedPlayer(player);
+      setLoanModalOpen(true);
+      setLoanOffers(await generateLoanOffers());
+  };
+
+  const confirmLoan = (offer: {name: string, wageSplit: number}) => {
+      if (!selectedPlayer) return;
+      setSquad(prev => prev.map(p => p.id === selectedPlayer.id ? { ...p, isLoaned: true, team: offer.name } : p));
+      setLoanModalOpen(false); setSelectedPlayer(null);
+      alert(`${selectedPlayer.name} emprestado para ${offer.name}!`);
+  };
+
+  // --- SOCIAL ACTIONS ---
+  const handleLikePost = (id: string) => {
+      setSocialPosts(prev => prev.map(p => p.id === id ? { ...p, isLiked: !p.isLiked, likes: p.likes + (p.isLiked ? -1 : 1) } : p));
+  };
+
+  const handleCommentPost = (id: string) => {
+      const text = commentText[id];
+      if (!text) return;
+      setSocialPosts(prev => prev.map(p => p.id === id ? { ...p, comments: [...p.comments, { id: Math.random().toString(), author: "Você", text }] } : p));
+      setCommentText(prev => ({ ...prev, [id]: '' }));
+  };
+
+  // --- MATCH LOGIC ---
+
+  const applyInGameTactic = (tacticType: string) => {
+      setActiveIngameTactic(tacticType);
+      // Chance de gol imediato
+      if (Math.random() > 0.3) {
+          setTimeout(() => {
+               setMatchEvents(prev => [...prev, { minute: simTime + 2, description: `GOL! A tática ${tacticType} funcionou!`, type: 'goal', team: 'home' }]);
+               setCurrentScore(s => ({ ...s, home: s.home + 1 }));
+          }, 500);
+      }
+      setTimeout(() => setActiveIngameTactic(null), 5000); // Efeito dura 5s na UI
+  };
+
+  const startMatch = async (overrideOpponent?: Team, isLibertadores = false, forceVisual = false) => {
+      let opponentTeam = overrideOpponent;
+      if (!opponentTeam) {
+        // Na liga, pega um oponente ficticio da tabela que nao seja o usuario
         const opponents = leagueTable.filter(t => t.id !== userTeam?.id);
-        const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
-        opponentTeam = { id: randomOpponent.id, name: randomOpponent.name, primaryColor: 'bg-slate-600', secondaryColor: 'text-white' };
-        setIsLibertadoresMatch(false);
+        // Ensure opponent has colors if generic
+        const genericOpp = opponents[Math.floor(Math.random() * opponents.length)];
+        opponentTeam = { 
+            id: genericOpp.id, 
+            name: genericOpp.name, 
+            primaryColor: 'bg-slate-700', 
+            secondaryColor: 'text-white' 
+        };
       }
       
       setCurrentOpponent(opponentTeam);
+      setIsLibertadoresMatch(isLibertadores);
       
-      // Se for Libertadores, simula RÁPIDO e sem visual
-      if (isLibertadores) {
+      if (isLibertadores && !forceVisual) {
           setSimulatingLibertadores(true);
-          // Passamos 'true' no final para isQuickSim
           const result = await simulateMatchWithGemini(userTeam!, squad, opponentTeam, tactics, true);
           setMatchEvents(result.events);
-          
-          updateLeagueTable(result);
+          updateLeagueTable(result, true);
           setSimulatingLibertadores(false);
-          
-          // Mostra resultado simples
-          alert(`FIM DE JOGO - COPA DAS AMÉRICAS\n\n${userTeam!.name} ${result.homeScore} x ${result.awayScore} ${opponentTeam.name}\n\n${result.summary}`);
+          alert(`FIM DE JOGO: ${userTeam!.name} ${result.homeScore} x ${result.awayScore} ${opponentTeam.name}\n\n${result.summary}`);
           return;
       }
 
-      // Se for jogo normal, prepara visual
       setPreparingVisualMatch(true);
-      
-      // Use Gemini to generate result, PASSING TACTICS now
       const result = await simulateMatchWithGemini(userTeam!, squad, opponentTeam, tactics);
       setMatchEvents(result.events);
-      
-      // Prep Visuals
       setPreparingVisualMatch(false);
       setIsVisualMatch(true);
       setSimTime(0);
       setCurrentScore({ home: 0, away: 0 });
-      setLastEventIndex(-1);
-      
-      // Simple loops for visual positioning
       setHomePlayerPos(Array(10).fill(0).map(() => ({ x: 30 + Math.random() * 20, y: 10 + Math.random() * 80 })));
       setAwayPlayerPos(Array(10).fill(0).map(() => ({ x: 60 + Math.random() * 20, y: 10 + Math.random() * 80 })));
 
-      // Animation Loop
       const interval = setInterval(() => {
           setSimTime(t => {
-              if (t >= 90) {
-                  clearInterval(interval);
-                  setIsVisualMatch(false);
-                  updateLeagueTable(result);
-                  // Post match social
-                  const newPosts = generateSocialFeed().slice(0, 3);
-                  setSocialPosts(prev => [...newPosts, ...prev]);
-                  return 90;
+              if (t >= 90) { clearInterval(interval); setIsVisualMatch(false); updateLeagueTable(result, isLibertadores); return 90; }
+              // Movimentação aleatória dos jogadores
+              setHomePlayerPos(prev => prev.map(p => ({ x: Math.max(5, Math.min(95, p.x + (Math.random()-0.5)*4)), y: Math.max(5, Math.min(95, p.y + (Math.random()-0.5)*4)) })));
+              setAwayPlayerPos(prev => prev.map(p => ({ x: Math.max(5, Math.min(95, p.x + (Math.random()-0.5)*4)), y: Math.max(5, Math.min(95, p.y + (Math.random()-0.5)*4)) })));
+              setBallPosition({ x: 50 + (Math.random() - 0.5) * 80, y: 50 + (Math.random() - 0.5) * 80 });
+              
+              // Verificar eventos
+              const event = result.events.find(e => e.minute === t);
+              if (event && event.type === 'goal') {
+                   if (event.team === 'home') setCurrentScore(s => ({...s, home: s.home + 1}));
+                   else setCurrentScore(s => ({...s, away: s.away + 1}));
               }
               return t + 1;
           });
-
-          // Move players randomly for visual effect
-          setHomePlayerPos(prev => prev.map(p => ({
-              x: Math.min(90, Math.max(10, p.x + (Math.random() - 0.5) * 5)),
-              y: Math.min(90, Math.max(10, p.y + (Math.random() - 0.5) * 5))
-          })));
-          setAwayPlayerPos(prev => prev.map(p => ({
-               x: Math.min(90, Math.max(10, p.x + (Math.random() - 0.5) * 5)),
-               y: Math.min(90, Math.max(10, p.y + (Math.random() - 0.5) * 5))
-          })));
-          setBallPosition({ x: 50 + (Math.random() - 0.5) * 60, y: 50 + (Math.random() - 0.5) * 60 });
-
-      }, 150); // Fast simulation
-
-      // Events Check
-      const eventInterval = setInterval(() => {
-          setSimTime(currentTime => {
-              const event = result.events.find(e => e.minute === currentTime);
-              if (event) {
-                  if (event.type === 'goal') {
-                      if (event.team === 'home') setCurrentScore(s => ({...s, home: s.home + 1}));
-                      else setCurrentScore(s => ({...s, away: s.away + 1}));
-                      setBallPosition({ x: 50, y: 50 }); // Reset ball visual
-                  }
-              }
-              return currentTime;
-          })
       }, 150);
   };
 
-  const handleTacticChange = (type: string, value: string) => {
-      setTactics(prev => ({...prev, [type]: value}));
-      setTacticalFeedback(`${type === 'formation' ? 'Formação' : type === 'style' ? 'Estilo' : 'Intensidade'} alterada para: ${value}!`);
-      setTimeout(() => setTacticalFeedback(''), 3000);
+  const simulateCareerMatch = async () => {
+      if (!careerData) return;
+      setSimulatingCareer(true);
+      
+      // Delay rápido para simulação (0.8s)
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Lógica: Jogador sempre joga bem
+      const playerGoals = Math.floor(Math.random() * 2) + 1; // 1 ou 2 gols
+      const playerAssists = 1; // Sempre 1 assistência
+      
+      const teamGoals = playerGoals + playerAssists + Math.floor(Math.random() * 2); // Time faz gols do jogador + assistencia + extra
+      const oppGoals = Math.floor(Math.random() * teamGoals); // Oponente geralmente perde ou empata apertado
+
+      const result: MatchResult = {
+          homeScore: teamGoals,
+          awayScore: oppGoals,
+          events: [], // Não importa para simulação rápida
+          summary: "Vitória liderada pelo craque!",
+          opponentName: generateFictionalTeamName(),
+          win: teamGoals > oppGoals,
+          draw: teamGoals === oppGoals
+      };
+
+      // Atualiza dados da carreira
+      setCareerData(prev => {
+          if (!prev) return null;
+          return {
+              ...prev,
+              matchesPlayed: prev.matchesPlayed + 1,
+              goals: prev.goals + playerGoals,
+              assists: prev.assists + playerAssists,
+              rating: prev.rating + 0.1
+          };
+      });
+
+      // Atualiza tabela da liga simulada no fundo
+      updateLeagueTable(result, false);
+
+      setSimulatingCareer(false);
+      alert(`FIM DE JOGO!\n\n${careerData.teamName} ${teamGoals} x ${oppGoals} ${result.opponentName}\n\nSeu desempenho:\n⚽ ${playerGoals} Gols\n👟 ${playerAssists} Assistência\n⭐ Melhor em Campo`);
   };
 
-  // --- Renderers ---
+  const updateLeagueTable = (result: MatchResult, isLibertadores: boolean) => {
+       if (isLibertadores) {
+           setLibertadoresData(prev => {
+               if (!prev) return null;
+               const newGroups = [...prev.groups];
+               const currentGroup = newGroups[prev.currentGroupIndex];
+               const oppIndex = currentGroup.opponents.findIndex(o => !o.played && o.team.name === result.opponentName);
+               if (oppIndex >= 0) {
+                   const finalHome = currentScore.home > 0 ? currentScore.home : result.homeScore;
+                   const finalAway = currentScore.away > 0 ? currentScore.away : result.awayScore;
+                   
+                   currentGroup.opponents[oppIndex] = { ...currentGroup.opponents[oppIndex], played: true, result: `${finalHome} - ${finalAway}`, win: finalHome > finalAway };
+                   if (currentGroup.opponents.every(o => o.played)) {
+                       currentGroup.completed = true;
+                       if (prev.currentGroupIndex < prev.groups.length - 1) {
+                           setTimeout(() => alert(`Grupo ${currentGroup.name} Concluído!`), 500);
+                           return { ...prev, groups: newGroups, currentGroupIndex: prev.currentGroupIndex + 1 };
+                       } else {
+                            // Ganhou a libertadores
+                            setTrophies(prevT => {
+                                if (prevT.find(t => t.id.startsWith('lib'))) return prevT;
+                                return [...prevT, { id: `lib-${Date.now()}`, name: 'Taça Continental', year: 1, competition: 'Copa dos Campeões' }];
+                            });
+                            setShowLibertadoresCelebration(true);
+                       }
+                   }
+               }
+               return { ...prev, groups: newGroups };
+           });
+           setIsLibertadoresMatch(false);
+           return;
+       }
+
+       // Atualiza tabela da liga (considerando gols marcados no visual ou simulação)
+       const finalHomeScore = isVisualMatch ? currentScore.home : result.homeScore;
+       const finalAwayScore = isVisualMatch ? currentScore.away : result.awayScore;
+
+       setLeagueTable(prev => {
+           const newTable = prev.map(t => {
+                if (t.id === userTeam?.id) {
+                    return { ...t, played: t.played + 1, gf: t.gf + finalHomeScore, ga: t.ga + finalAwayScore, won: t.won + (finalHomeScore > finalAwayScore ? 1 : 0), drawn: t.drawn + (finalHomeScore === finalAwayScore ? 1 : 0), lost: t.lost + (finalHomeScore < finalAwayScore ? 1 : 0), points: t.points + (finalHomeScore > finalAwayScore ? 3 : (finalHomeScore === finalAwayScore ? 1 : 0)) };
+                }
+                return t;
+            });
+            checkLeagueChampion(newTable);
+            return newTable;
+       });
+       
+       setWeek(w => w + 1);
+  };
+
+  // --- RENDERERS ---
 
   const renderDashboard = () => (
     <div className="p-4 md:p-8 space-y-6 pb-24 lg:pb-8">
+      {showLeagueChampion && <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-8 text-center"><Crown size={100} className="text-yellow-400 mb-6 animate-bounce" /><h1 className="text-5xl font-bold text-yellow-400 mb-4">CAMPEÃO BRASILEIRO!</h1><p className="text-white text-xl mb-8">Sua equipe dominou o campeonato.</p><button onClick={() => {setShowLeagueChampion(false); setView('trophies');}} className="bg-yellow-500 text-black px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform">Ver Sala de Troféus</button></div>}
+      
       <header className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-bold text-slate-800">Início</h2>
-          <p className="text-slate-500">Bem-vindo ao {userTeam?.name}</p>
-        </div>
-        <div className="flex items-center gap-4">
-            <button 
-                onClick={handleSkipWeek}
-                className="flex items-center gap-2 bg-amber-100 text-amber-800 px-4 py-2 rounded-lg font-bold hover:bg-amber-200 transition-colors border border-amber-200"
-            >
-                <CalendarClock size={20} />
-                <span className="hidden md:inline">Pular Semana</span>
-            </button>
-            <div className="text-right hidden md:block">
-                <p className="text-sm text-slate-500 font-bold uppercase">Temporada 1</p>
-                <p className="text-xs text-slate-400">Semana {week}</p>
-            </div>
-        </div>
+        <div><h2 className="text-2xl md:text-3xl font-bold text-slate-800">Início</h2><p className="text-slate-500">Bem-vindo ao {userTeam?.name}</p></div>
+        <button onClick={handleSkipWeek} className="flex items-center gap-2 bg-amber-100 text-amber-800 px-4 py-2 rounded-lg font-bold hover:bg-amber-200 transition-colors border border-amber-200"><CalendarClock size={20} /><span className="hidden md:inline">Pular Semana</span></button>
       </header>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-             <button onClick={() => setView('match')} className="p-6 bg-slate-900 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px] group hover:scale-[1.02] transition-transform border border-slate-800 relative overflow-hidden">
-                 <div className="absolute top-0 right-0 p-32 bg-slate-800/50 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                 <div className="relative z-10"><MonitorPlay size={32} className="text-emerald-400" /></div>
-                 <div className="relative z-10 text-left mt-4">
-                     <p className="text-slate-400 text-sm font-medium mb-1">Próximo Desafio</p>
-                     <h3 className="text-2xl font-bold">Ir para o Jogo</h3>
-                 </div>
-             </button>
-
-             {/* LIBERTADORES BUTTON */}
-             <button onClick={() => setView(libertadoresData ? 'libertadores-hub' : 'libertadores-select')} className="p-6 bg-gradient-to-br from-yellow-700 to-yellow-900 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px] group hover:scale-[1.02] transition-transform relative overflow-hidden border border-yellow-600/50">
-                 <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                 <div className="relative z-10"><Globe2 size={32} className="text-yellow-400" /></div>
-                 <div className="relative z-10 text-left mt-4">
-                     <p className="text-yellow-200 text-sm font-medium mb-1">Torneio Continental</p>
-                     <h3 className="text-xl md:text-2xl font-bold">Copa das Américas</h3>
-                     <p className="text-xs text-yellow-300/80 mt-1">Times Fictícios Exclusivos</p>
-                 </div>
-             </button>
-
-             <button onClick={() => setView(careerData ? 'career-hub' : 'career-intro')} className="p-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px] group hover:scale-[1.02] transition-transform relative overflow-hidden">
-                 <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                 <div className="relative z-10"><Star size={32} className="text-yellow-300 fill-yellow-300" /></div>
-                 <div className="relative z-10 text-left mt-4">
-                     <p className="text-indigo-200 text-sm font-medium mb-1">Modo Carreira</p>
-                     <h3 className="text-2xl font-bold">Rumo ao Estrelato</h3>
-                 </div>
-             </button>
-
-             <button onClick={() => setShowFinances(true)} className="p-6 bg-emerald-600 text-white rounded-2xl shadow-lg hover:bg-emerald-700 transition-colors flex flex-col justify-between min-h-[160px] relative overflow-hidden">
-                 <div className="absolute bottom-0 left-0 p-24 bg-white/10 rounded-full blur-2xl -ml-12 -mb-12 pointer-events-none"></div>
-                 <div className="relative z-10"><Wallet size={28} /></div>
-                 <div className="relative z-10 text-left mt-4">
-                     <p className="text-emerald-100 text-sm font-medium mb-1">Gestão</p>
-                     <h3 className="text-xl font-bold">Finanças</h3>
-                     <p className="text-xs font-bold mt-1 bg-emerald-800/50 inline-block px-2 py-0.5 rounded">$ {budget.toFixed(1)}M</p>
-                 </div>
-             </button>
-             
-              {/* TROPHY BUTTON (NEW) */}
-             <button onClick={() => setView('trophies')} className="p-6 bg-amber-500 text-white rounded-2xl shadow-lg hover:bg-amber-600 transition-colors flex flex-col justify-between min-h-[160px] relative overflow-hidden col-span-1 sm:col-span-2">
-                 <div className="absolute top-0 right-0 p-24 bg-white/20 rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none"></div>
-                 <div className="relative z-10"><Award size={28} /></div>
-                 <div className="relative z-10 text-left mt-4 flex justify-between items-end">
-                     <div>
-                        <p className="text-amber-100 text-sm font-medium mb-1">Conquistas</p>
-                        <h3 className="text-xl font-bold">Sala de Troféus</h3>
-                     </div>
-                     <span className="text-3xl font-bold opacity-50">{trophies.length}</span>
-                 </div>
-             </button>
+             <button onClick={() => setView('match')} className="p-6 bg-slate-900 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px]"><MonitorPlay size={32} className="text-emerald-400" /><h3 className="text-2xl font-bold mt-4">Ir para o Jogo</h3></button>
+             <button onClick={() => setView(libertadoresData ? 'libertadores-hub' : 'libertadores-select')} className="p-6 bg-gradient-to-br from-yellow-700 to-yellow-900 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px]"><Globe2 size={32} className="text-yellow-400" /><h3 className="text-xl font-bold mt-4">Copa dos Campeões</h3></button>
+             <button onClick={() => { setView(careerData ? 'career-hub' : 'career-intro'); }} className="p-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px]"><Star size={32} className="text-yellow-300" /><h3 className="text-2xl font-bold mt-4">Rumo ao Estrelato</h3></button>
+             <button onClick={() => setShowFinances(true)} className="p-6 bg-emerald-600 text-white rounded-2xl shadow-lg flex flex-col justify-between min-h-[160px]"><Wallet size={28} /><h3 className="text-xl font-bold mt-4">Finanças: ${budget.toFixed(1)}M</h3></button>
         </div>
-
-        <div className="space-y-6">
-             <Card title="Classificação - Série A" action={<button onClick={() => setView('standings')} className="text-xs text-blue-600 font-bold">Ver Tudo</button>}>
-                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="text-slate-400 border-b text-[10px] uppercase">
-                            <tr><th className="pb-2 pl-1">Pos</th><th className="pb-2">Time</th><th className="pb-2 text-center">Pts</th></tr>
-                        </thead>
-                        <tbody className="text-slate-700">
-                            {[...leagueTable].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga))
-                                .map((t, i) => ({...t, rank: i + 1})).slice(0, 5).map((team) => (
-                                <tr key={team.id} className={`border-b last:border-0 ${team.id === userTeam?.id ? 'bg-emerald-50 font-bold' : ''}`}>
-                                    <td className="py-2 pl-2 w-8">{team.rank}º</td>
-                                    <td className="py-2 truncate max-w-[100px]">{team.name}</td>
-                                    <td className="py-2 text-center font-bold">{team.points}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                 </div>
-             </Card>
-
-             <button onClick={() => setView('market')} className="w-full p-4 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-between group">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors"><DollarSign size={24} /></div>
-                    <div className="text-left"><p className="font-bold">Mercado</p><p className="text-slate-400 text-xs">Contratar reforços</p></div>
-                </div>
-                <MoveRight size={16} className="text-slate-400 group-hover:text-emerald-600 transition-colors" />
-             </button>
-        </div>
+        <Card title="Classificação" action={<button onClick={() => setView('standings')} className="text-xs text-blue-600 font-bold">Ver Tudo</button>}>
+            <table className="w-full text-left text-sm"><tbody>{leagueTable.sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)).slice(0, 5).map((t, i) => (<tr key={t.id} className="border-b"><td className="py-2">{i + 1}º</td><td className="py-2">{t.name}</td><td className="py-2 font-bold">{t.points}</td></tr>))}</tbody></table>
+        </Card>
       </div>
-
-      {showFinances && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-200">
-                   <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                       <div className="flex items-center gap-2"><BarChart3 className="text-emerald-600" size={24} /><h3 className="font-bold text-lg text-slate-800">Departamento Financeiro</h3></div>
-                       <button onClick={() => setShowFinances(false)}><X size={20} /></button>
-                   </div>
-                   <div className="p-6 overflow-y-auto">
-                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                           <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-center">
-                               <p className="text-xs font-bold text-emerald-800 uppercase">Saldo Atual</p>
-                               <p className="text-2xl font-black text-emerald-600">$ {budget.toFixed(1)}M</p>
-                           </div>
-                           <div className="bg-red-50 p-4 rounded-xl border border-red-100 text-center">
-                               <p className="text-xs font-bold text-red-800 uppercase">Despesa Contratações</p>
-                               <p className="text-xl font-bold text-red-600">$ {Math.abs(transactions.filter(t => t.type === 'buy').reduce((acc, t) => acc + t.amount, 0)).toFixed(1)}M</p>
-                           </div>
-                           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
-                               <p className="text-xs font-bold text-blue-800 uppercase">Receita Vendas</p>
-                               <p className="text-xl font-bold text-blue-600">$ {transactions.filter(t => t.type === 'sell').reduce((acc, t) => acc + t.amount, 0).toFixed(1)}M</p>
-                           </div>
-                       </div>
-                       <h4 className="font-bold text-slate-700 mb-3">Histórico de Transações</h4>
-                       <div className="space-y-2">
-                           {transactions.length === 0 ? <p className="text-slate-400 text-center py-4">Nenhuma movimentação registrada.</p> : transactions.map(t => (
-                               <div key={t.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                   <div><p className="font-bold text-slate-800 text-sm">{t.description}</p><p className="text-xs text-slate-400">Semana {t.week}</p></div>
-                                   <span className={`font-bold ${t.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{t.amount >= 0 ? '+' : ''}{t.amount.toFixed(1)}M</span>
-                               </div>
-                           ))}
-                       </div>
-                   </div>
-              </div>
-          </div>
-      )}
+      {showFinances && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="bg-white p-6 rounded-2xl w-full max-w-lg"><h3 className="font-bold text-lg mb-4">Finanças</h3><p className="mb-4">Saldo: ${budget.toFixed(1)}M</p><button onClick={() => setShowFinances(false)} className="bg-slate-200 px-4 py-2 rounded">Fechar</button></div></div>}
     </div>
   );
 
-  const renderLibertadoresSelect = () => {
-      const teams = getLibertadoresTeams();
-      return (
-        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6 overflow-y-auto">
-          <div className="text-center mb-8 md:mb-10 mt-4">
-              <div className="flex items-center justify-center gap-3 mb-2">
-                  <Globe2 size={40} className="text-yellow-400" />
-                  <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight uppercase">Copa das <span className="text-yellow-400">Américas</span></h1>
-              </div>
-            <p className="text-slate-400 text-sm md:text-base">Escolha seu representante continental</p>
-          </div>
-          <button onClick={() => setView('dashboard')} className="mb-6 text-slate-400 hover:text-white flex items-center gap-2"><ArrowLeftRight /> Voltar ao Início</button>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 w-full max-w-5xl pb-8">
-            {teams.map((team) => (
-              <button
-                key={team.id}
-                onClick={() => handleLibertadoresSelect(team)}
-                disabled={!!loading}
-                className={`
-                    relative group overflow-hidden rounded-xl p-4 md:p-6 transition-all duration-300
-                    bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-yellow-500
-                    flex flex-col items-center gap-3 md:gap-4
-                    ${loading === team.id ? 'ring-2 ring-yellow-500' : ''}
-                `}
-              >
-                <div className={`w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center text-lg md:text-xl font-bold shadow-lg ${team.primaryColor} ${team.secondaryColor}`}>
-                   {team.name.substring(0, 3).toUpperCase()}
-                </div>
-                <span className="font-semibold text-white text-sm md:text-base group-hover:text-yellow-400 transition-colors truncate w-full text-center">{team.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      );
-  };
-
   const renderLibertadoresHub = () => {
       if (!libertadoresData) return null;
-      
       const currentGroup = libertadoresData.groups[libertadoresData.currentGroupIndex];
-      const nextOpponentIndex = currentGroup.opponents.findIndex(o => !o.played);
-      const nextOpponent = nextOpponentIndex !== -1 ? currentGroup.opponents[nextOpponentIndex] : null;
-
+      const nextOpponent = currentGroup.opponents.find(o => !o.played);
+      
       return (
-          <div className="p-4 md:p-8 pb-24 min-h-screen bg-slate-900 text-white relative">
-              {/* LOADING OVERLAY FOR QUICK SIM */}
-              {simulatingLibertadores && (
-                  <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center">
-                      <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-yellow-500 mb-4"></div>
-                      <h3 className="text-2xl font-bold text-white animate-pulse">Simulando Partida...</h3>
-                  </div>
-              )}
-
-              {showLibertadoresCelebration && (
-                  <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center animate-in fade-in duration-1000 p-8 text-center">
-                      <div className="animate-bounce mb-8">
-                          <Crown size={120} className="text-yellow-400 drop-shadow-[0_0_50px_rgba(250,204,21,0.8)]" />
-                      </div>
-                      <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 mb-6 uppercase tracking-tighter">
-                          SEU TIME FOI CAMPEÃO!
-                      </h1>
-                      <div className="flex items-center gap-6 mb-12">
-                           <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold shadow-2xl border-4 border-yellow-400 ${libertadoresData.myTeam.primaryColor} ${libertadoresData.myTeam.secondaryColor}`}>
-                               {libertadoresData.myTeam.name.substring(0, 2)}
+          <div className="p-4 md:p-8 bg-slate-900 text-white min-h-screen">
+              {simulatingLibertadores && <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center"><h3 className="text-2xl font-bold animate-pulse">Simulando...</h3></div>}
+              {showLibertadoresCelebration && <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-8 text-center"><Crown size={100} className="text-yellow-400 mb-6" /><h1 className="text-5xl font-bold text-yellow-400 mb-4">CAMPEÃO CONTINENTAL!</h1><button onClick={() => {setShowLibertadoresCelebration(false); setView('trophies'); setLibertadoresData(null);}} className="bg-yellow-500 text-black px-8 py-3 rounded-full font-bold">Ver Troféus</button></div>}
+              
+              <div className="flex justify-between mb-8"><h2 className="text-3xl font-bold text-yellow-400">{libertadoresData.myTeam.name} - {currentGroup.name}</h2><button onClick={() => setView('dashboard')} className="text-sm border px-3 py-1 rounded">Voltar</button></div>
+              <div className="grid lg:grid-cols-3 gap-8">
+                   <div className="lg:col-span-2 bg-slate-800 p-6 rounded-xl">
+                       {currentGroup.opponents.map((opp, idx) => (
+                           <div key={idx} className={`flex justify-between p-4 border-b border-slate-700 ${!opp.played && opp === nextOpponent ? 'bg-slate-700' : ''}`}>
+                               <span className={!opp.played && opp === nextOpponent ? 'text-yellow-400 font-bold' : ''}>{opp.team.name}</span>
+                               {opp.played ? <span className="font-mono font-bold">{opp.result}</span> : <Lock size={16} />}
                            </div>
-                           <div className="text-left">
-                               <p className="text-2xl font-bold text-white">{libertadoresData.myTeam.name}</p>
-                               <p className="text-yellow-400">Reis da América</p>
+                       ))}
+                       {nextOpponent && (
+                           <div className="grid grid-cols-2 gap-4 mt-6">
+                               <button onClick={() => startMatch(nextOpponent.team, true, false)} className="bg-yellow-600 py-4 rounded-xl font-bold text-xl hover:bg-yellow-500">SIMULAR RÁPIDO</button>
+                               <button onClick={() => startMatch(nextOpponent.team, true, true)} className="bg-emerald-600 py-4 rounded-xl font-bold text-xl hover:bg-emerald-500">ASSISTIR 2D</button>
                            </div>
-                      </div>
-                      <p className="text-slate-400 mb-8 max-w-md">O troféu foi adicionado à sua galeria. Parabéns pela campanha histórica!</p>
-                      <button 
-                          onClick={() => { setShowLibertadoresCelebration(false); setView('trophies'); setLibertadoresData(null); }}
-                          className="px-8 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xl rounded-full shadow-lg transition-transform hover:scale-105"
-                      >
-                          VER SALA DE TROFÉUS
-                      </button>
-                      {/* Simple confetti dots */}
-                      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                          {[...Array(20)].map((_, i) => (
-                              <div key={i} className="absolute w-3 h-3 rounded-full animate-ping" style={{ 
-                                  backgroundColor: ['#facc15', '#ef4444', '#3b82f6', '#ffffff'][i % 4],
-                                  top: `${Math.random() * 100}%`, left: `${Math.random() * 100}%`,
-                                  animationDuration: `${1 + Math.random() * 2}s`,
-                                  animationDelay: `${Math.random()}s`
-                              }}></div>
-                          ))}
-                      </div>
-                  </div>
-              )}
-
-              <div className="max-w-4xl mx-auto">
-                  <div className="flex justify-between items-center mb-8">
-                      <div className="flex items-center gap-4">
-                           <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg ${libertadoresData.myTeam.primaryColor} ${libertadoresData.myTeam.secondaryColor}`}>
-                               {libertadoresData.myTeam.name.substring(0, 2)}
-                           </div>
-                           <div>
-                               <h2 className="text-3xl font-bold">{libertadoresData.myTeam.name}</h2>
-                               <p className="text-yellow-400 font-bold uppercase tracking-widest text-sm">Rumo à Glória Eterna</p>
-                           </div>
-                      </div>
-                      <button onClick={() => { setView('dashboard'); setLibertadoresData(null); }} className="px-4 py-2 border border-slate-600 rounded-lg hover:bg-slate-800 text-sm">Sair da Copa</button>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                      {/* Left Column: Progress */}
-                      <div className="lg:col-span-2 space-y-6">
-                           <div className="bg-slate-800 rounded-2xl p-6 border border-yellow-500/30 shadow-[0_0_30px_rgba(234,179,8,0.1)]">
-                                <h3 className="text-2xl font-bold mb-4 flex items-center justify-between">
-                                    <span>{currentGroup.name}</span>
-                                    <span className="text-sm bg-black/40 px-3 py-1 rounded-full text-slate-400">Fase {libertadoresData.currentGroupIndex + 1} de {libertadoresData.groups.length}</span>
-                                </h3>
-                                
-                                <div className="space-y-3">
-                                    {currentGroup.opponents.map((opp, idx) => (
-                                        <div key={idx} className={`flex items-center justify-between p-4 rounded-xl border ${opp.played ? 'bg-black/20 border-slate-700' : idx === nextOpponentIndex ? 'bg-slate-700 border-yellow-500/50' : 'bg-slate-800/50 border-slate-800 opacity-50'}`}>
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold text-white">
-                                                    {idx + 1}
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${opp.team.primaryColor}`}>
-                                                        {opp.team.name.substring(0, 1)}
-                                                    </div>
-                                                    <span className={`font-bold ${idx === nextOpponentIndex ? 'text-white' : 'text-slate-400'}`}>{opp.team.name}</span>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                {opp.played ? (
-                                                    <span className={`font-bold font-mono px-3 py-1 rounded ${opp.win ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'}`}>{opp.result}</span>
-                                                ) : idx === nextOpponentIndex ? (
-                                                    <span className="text-xs font-bold text-yellow-400 animate-pulse">PRÓXIMO</span>
-                                                ) : (
-                                                    <Lock size={16} className="text-slate-600" />
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                           </div>
-
-                           {nextOpponent && (
-                               <button 
-                                   onClick={() => startMatch(nextOpponent.team, true)}
-                                   disabled={simulatingLibertadores}
-                                   className="w-full py-6 bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-500 hover:to-yellow-600 text-white rounded-2xl font-black text-xl shadow-lg transform transition hover:scale-[1.01] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                               >
-                                   <PlayCircle size={28} />
-                                   JOGAR CONTRA {nextOpponent.team.name.toUpperCase()}
-                               </button>
-                           )}
-                      </div>
-
-                      {/* Right Column: Squad & Info */}
-                      <div className="space-y-6">
-                           <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-                               <h4 className="font-bold text-slate-400 uppercase text-xs mb-4">Seu Elenco</h4>
-                               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                                   {squad.map(p => (
-                                       <div key={p.id} className="flex justify-between items-center text-sm p-2 bg-slate-700/50 rounded">
-                                           <span>{p.name}</span>
-                                           <span className={`font-bold ${p.rating >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>{p.rating}</span>
-                                       </div>
-                                   ))}
-                               </div>
-                           </div>
-                      </div>
-                  </div>
+                       )}
+                   </div>
               </div>
           </div>
       );
   };
-
-  const renderMatch = () => {
-      if (preparingVisualMatch || isVisualMatch) {
-          return (
-              <div className="min-h-screen bg-slate-900 p-4 flex flex-col items-center justify-center relative">
-                  <div className="w-full max-w-5xl">
-                      {/* Placar */}
-                      <div className="bg-slate-800 text-white p-4 rounded-t-2xl flex justify-between items-center border-b border-slate-700">
-                          <div className="flex items-center gap-4 w-1/3">
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${userTeam?.primaryColor}`}>{userTeam?.name.substring(0,2)}</div>
-                              <span className="font-bold text-lg hidden md:inline">{userTeam?.name}</span>
-                          </div>
-                          <div className="text-3xl font-black font-mono bg-black/50 px-6 py-2 rounded-lg border border-white/10 shadow-inner">{currentScore.home} - {currentScore.away}</div>
-                          <div className="flex items-center gap-4 w-1/3 justify-end">
-                              <span className="font-bold text-lg hidden md:inline">{currentOpponent?.name}</span>
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${currentOpponent?.primaryColor || 'bg-slate-600'}`}>{currentOpponent?.name.substring(0,2)}</div>
-                          </div>
-                      </div>
-                      
-                      <SoccerField homeTeam={userTeam!} awayTeam={currentOpponent!} gameTime={simTime} ballPos={ballPosition} homePositions={homePlayerPos} awayPositions={awayPlayerPos} />
-                      
-                      {/* Centro Tático (NOVO) */}
-                      <div className="mt-4 bg-slate-900 rounded-xl p-4 border-t-4 border-emerald-500 shadow-2xl">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-white font-bold text-lg flex items-center gap-2">
-                                <Activity className="text-emerald-400" />
-                                Centro de Comando Tático
-                            </h3>
-                            {tacticalFeedback && (
-                                <div className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-xs font-bold animate-pulse border border-emerald-500/50">
-                                    {tacticalFeedback}
-                                </div>
-                            )}
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Formação</label>
-                                <div className="flex flex-col gap-2">
-                                    {['4-3-3', '4-4-2', '3-5-2'].map(f => (
-                                        <button key={f} onClick={() => handleTacticChange('formation', f)} className={`p-2 rounded text-xs font-bold transition-all ${tactics.formation === f ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{f}</button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Estilo</label>
-                                <div className="flex flex-col gap-2">
-                                    {['Tic-Taka', 'Contra-Ataque', 'Bola Longa'].map(s => (
-                                        <button key={s} onClick={() => handleTacticChange('style', s)} className={`p-2 rounded text-xs font-bold transition-all ${tactics.style === s ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{s}</button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Intensidade</label>
-                                <div className="flex flex-col gap-2">
-                                    {['Pressão Alta', 'Equilibrado', 'Recuar'].map(i => (
-                                        <button key={i} onClick={() => handleTacticChange('intensity', i)} className={`p-2 rounded text-xs font-bold transition-all ${tactics.intensity === i ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{i}</button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-3 text-center italic">Alterar táticas pode influenciar a moral e o posicionamento do time em tempo real.</p>
-                      </div>
-
-                      {/* Narracao */}
-                      <div className="mt-4 h-32 bg-black/40 rounded-lg p-4 overflow-y-auto font-mono text-sm text-emerald-400 border border-emerald-900/30">
-                          {matchEvents.filter(e => e.minute <= simTime).reverse().map((e, i) => (
-                              <div key={i} className="mb-1"><span className="text-slate-500 mr-2">{e.minute}'</span> {e.description}</div>
-                          ))}
-                      </div>
-                  </div>
-              </div>
-          )
-      }
-
-      return (
-          <div className="p-4 md:p-8 flex flex-col items-center justify-center min-h-[80vh]">
-              <div className="max-w-md w-full text-center space-y-6">
-                  <div className="w-24 h-24 bg-slate-200 rounded-full mx-auto flex items-center justify-center text-4xl mb-4 shadow-lg">⚽</div>
-                  <h2 className="text-3xl font-bold text-slate-800">Dia de Jogo!</h2>
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                      <p className="text-slate-500 font-bold uppercase text-sm mb-4">Próximo Adversário</p>
-                      <div className="flex items-center justify-center gap-4 mb-6">
-                          <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-white text-xl ${userTeam?.primaryColor}`}>{userTeam?.name.substring(0,2)}</div>
-                          <span className="text-2xl font-bold text-slate-300">VS</span>
-                          <div className="w-16 h-16 rounded-full bg-slate-600 flex items-center justify-center font-bold text-white text-xl">?</div>
-                      </div>
-                      <button onClick={() => startMatch()} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 transition-transform hover:scale-105 shadow-lg shadow-emerald-200">
-                          Iniciar Partida
-                      </button>
-                  </div>
-              </div>
-          </div>
-      );
-  };
-
-  const renderSquad = () => (
-      <div className="p-4 md:p-8 pb-24">
-          <h2 className="text-2xl font-bold text-slate-800 mb-6">Elenco Principal</h2>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              {squad.sort((a,b) => b.rating - a.rating).map(player => (
-                  <PlayerRow key={player.id} player={player} onSell={handleSellPlayer} showPrice />
-              ))}
-          </div>
-      </div>
-  );
 
   const renderMarket = () => (
       <div className="p-4 md:p-8 pb-24">
-          <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-slate-800">Mercado da Bola</h2>
-              <div className="text-right">
-                  <p className="text-xs text-slate-500 uppercase font-bold">Orçamento</p>
-                  <p className="text-xl font-bold text-emerald-600">$ {budget.toFixed(1)}M</p>
-              </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <h2 className="text-2xl font-bold mb-6">Mercado (Saldo: ${budget.toFixed(1)}M)</h2>
+          <div className="bg-white rounded-xl shadow border border-slate-200">
               {market.map(player => (
-                  <PlayerRow key={player.id} player={player} actionButton={
-                      <button onClick={() => handleBuyPlayer(player)} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded hover:bg-emerald-700 font-bold">
-                          Comprar (${player.value}M)
-                      </button>
-                  } />
+                  <PlayerRow key={player.id} player={player} showPrice actionButton={<button onClick={() => openBuyModal(player)} className="bg-emerald-600 text-white text-xs px-3 py-1 rounded font-bold">Comprar</button>} />
               ))}
           </div>
+          {negotiationType === 'buy' && selectedPlayer && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="bg-white p-6 rounded-2xl w-full max-w-md"><h3 className="font-bold text-lg mb-4">Comprar {selectedPlayer.name}</h3><div className="space-y-4"><div><label>Salário: ${negotiationValues.salary}k</label><input type="range" min="10" max="500" value={negotiationValues.salary} onChange={(e) => setNegotiationValues({...negotiationValues, salary: parseInt(e.target.value)})} className="w-full" /></div><div><label>Contrato: {negotiationValues.weeks} semanas</label><input type="range" min="12" max="150" value={negotiationValues.weeks} onChange={(e) => setNegotiationValues({...negotiationValues, weeks: parseInt(e.target.value)})} className="w-full" /></div><button onClick={confirmPurchase} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold">Confirmar ($ {selectedPlayer.value}M)</button><button onClick={() => setNegotiationType(null)} className="w-full py-2 text-slate-500">Cancelar</button></div></div></div>
+          )}
       </div>
   );
 
-  const renderStandings = () => (
+  const renderSquad = () => (
       <div className="p-4 md:p-8 pb-24">
-          <h2 className="text-2xl font-bold text-slate-800 mb-6">Tabela do Campeonato</h2>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-             <table className="w-full text-left">
-                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
-                     <tr>
-                         <th className="p-4">Pos</th>
-                         <th className="p-4">Time</th>
-                         <th className="p-4 text-center">P</th>
-                         <th className="p-4 text-center hidden md:table-cell">J</th>
-                         <th className="p-4 text-center hidden md:table-cell">V</th>
-                         <th className="p-4 text-center hidden md:table-cell">E</th>
-                         <th className="p-4 text-center hidden md:table-cell">D</th>
-                         <th className="p-4 text-center">SG</th>
-                     </tr>
-                 </thead>
-                 <tbody className="divide-y divide-slate-100">
-                     {[...leagueTable].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)).map((t, i) => (
-                         <tr key={t.id} className={`hover:bg-slate-50 ${t.id === userTeam?.id ? 'bg-emerald-50' : ''}`}>
-                             <td className="p-4 font-bold text-slate-500 w-16">{i + 1}º</td>
-                             <td className="p-4 font-bold text-slate-800 flex items-center gap-3">
-                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white ${t.id === userTeam?.id ? userTeam.primaryColor : 'bg-slate-400'}`}>{t.name.substring(0,1)}</div>
-                                 {t.name}
-                             </td>
-                             <td className="p-4 text-center font-bold text-slate-900">{t.points}</td>
-                             <td className="p-4 text-center text-slate-500 hidden md:table-cell">{t.played}</td>
-                             <td className="p-4 text-center text-emerald-600 hidden md:table-cell">{t.won}</td>
-                             <td className="p-4 text-center text-slate-500 hidden md:table-cell">{t.drawn}</td>
-                             <td className="p-4 text-center text-red-500 hidden md:table-cell">{t.lost}</td>
-                             <td className="p-4 text-center font-mono text-slate-600">{t.gf - t.ga}</td>
-                         </tr>
-                     ))}
-                 </tbody>
-             </table>
+          <h2 className="text-2xl font-bold mb-6">Elenco</h2>
+          <div className="bg-white rounded-xl shadow border border-slate-200">
+              {squad.map(player => <PlayerRow key={player.id} player={player} onSell={handleSellPlayer} onLoan={openLoanModal} onRenew={openRenewModal} />)}
+          </div>
+          {loanModalOpen && selectedPlayer && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="bg-white p-6 rounded-2xl w-full max-w-md"><h3 className="font-bold text-lg mb-4">Emprestar {selectedPlayer.name}</h3>{loanOffers.map((o, i) => <button key={i} onClick={() => confirmLoan(o)} className="w-full p-3 border mb-2 rounded text-left hover:bg-slate-50"><div className="font-bold">{o.name}</div><div className="text-sm text-slate-500">Paga {o.wageSplit}% salário</div></button>)}<button onClick={() => setLoanModalOpen(false)} className="w-full py-2 text-slate-500 mt-2">Cancelar</button></div></div>
+          )}
+          {negotiationType === 'renew' && selectedPlayer && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="bg-white p-6 rounded-2xl w-full max-w-md"><h3 className="font-bold text-lg mb-4">Renovar com {selectedPlayer.name}</h3><div className="space-y-4"><div><label>Novo Salário: ${negotiationValues.salary}k</label><input type="range" min="10" max="500" value={negotiationValues.salary} onChange={(e) => setNegotiationValues({...negotiationValues, salary: parseInt(e.target.value)})} className="w-full" /></div><div><label>Extensão: +{negotiationValues.weeks} semanas</label><input type="range" min="10" max="150" value={negotiationValues.weeks} onChange={(e) => setNegotiationValues({...negotiationValues, weeks: parseInt(e.target.value)})} className="w-full" /></div><button onClick={confirmRenewal} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold">Renovar</button><button onClick={() => setNegotiationType(null)} className="w-full py-2 text-slate-500">Cancelar</button></div></div></div>
+          )}
+      </div>
+  );
+
+  const renderSocial = () => (
+      <div className="p-4 md:p-8 pb-24">
+          <h2 className="text-2xl font-bold mb-4">Rede Social</h2>
+          <div className="space-y-4">
+            {socialPosts.map(p => (
+                <Card key={p.id}>
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center"><User size={20} /></div>
+                        <div>
+                            <div className="font-bold">{p.authorName}</div>
+                            <div className="text-xs text-slate-500">{p.teamName} • {p.timeAgo}</div>
+                        </div>
+                    </div>
+                    <p className="mb-4">{p.content}</p>
+                    <div className="h-48 bg-slate-100 rounded-lg mb-4 flex items-center justify-center text-slate-400">
+                        {p.imageType === 'match' && <MonitorPlay size={40} />}
+                        {p.imageType === 'training' && <Activity size={40} />}
+                        {p.imageType === 'celebration' && <Trophy size={40} />}
+                        {p.imageType === 'leisure' && <Smartphone size={40} />}
+                    </div>
+                    <div className="flex items-center gap-4 text-slate-500 border-t pt-3">
+                        <button onClick={() => handleLikePost(p.id)} className={`flex items-center gap-1 ${p.isLiked ? 'text-red-500' : 'hover:text-red-500'}`}>
+                            <Heart size={20} fill={p.isLiked ? 'currentColor' : 'none'} /> {p.likes}
+                        </button>
+                        <div className="flex-1 flex gap-2">
+                            <input 
+                                value={commentText[p.id] || ''} 
+                                onChange={(e) => setCommentText({...commentText, [p.id]: e.target.value})} 
+                                placeholder="Comente algo..." 
+                                className="w-full text-sm border-b bg-transparent focus:outline-none" 
+                            />
+                            <button onClick={() => handleCommentPost(p.id)} className="text-emerald-600 font-bold text-sm">Enviar</button>
+                        </div>
+                    </div>
+                    {p.comments.length > 0 && (
+                        <div className="mt-3 bg-slate-50 p-2 rounded text-sm space-y-1">
+                            {p.comments.map(c => <div key={c.id}><b>{c.author}:</b> {c.text}</div>)}
+                        </div>
+                    )}
+                </Card>
+            ))}
           </div>
       </div>
   );
 
   const renderTrophies = () => (
-      <div className="p-4 md:p-8 pb-24">
-          <div className="flex items-center gap-3 mb-6">
-              <button onClick={() => setView('dashboard')} className="p-2 bg-slate-200 rounded-lg hover:bg-slate-300 md:hidden"><ArrowLeftRight size={20} /></button>
-              <h2 className="text-2xl font-bold text-slate-800">Sala de Troféus</h2>
-          </div>
+      <div className="p-4 md:p-8">
+          <h2 className="text-2xl font-bold mb-6">Sala de Troféus</h2>
           {trophies.length === 0 ? (
-              <div className="text-center py-20 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300">
-                  <Trophy size={64} className="mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-500 font-bold">Sua galeria está vazia.</p>
-                  <p className="text-sm text-slate-400">Vença campeonatos para preencher este espaço!</p>
-              </div>
+              <div className="text-center text-slate-500 py-10">Ainda não há troféus. Vença campeonatos!</div>
           ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                  {trophies.map(trophy => (
-                      <div key={trophy.id} className="bg-gradient-to-b from-amber-100 to-white p-6 rounded-2xl border border-amber-200 shadow-sm flex flex-col items-center text-center">
-                          <div className="p-4 bg-white rounded-full shadow-lg mb-4 text-amber-500">
-                              <Crown size={40} />
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                {trophies.map(t => (
+                    <div key={t.id} className="p-6 border border-amber-200 bg-gradient-to-b from-amber-50 to-white rounded-xl flex flex-col items-center text-center shadow-sm">
+                        <div className="bg-amber-100 p-4 rounded-full mb-3">
+                            <Crown size={40} className="text-amber-500" />
+                        </div>
+                        <h3 className="font-bold text-lg text-slate-800">{t.name}</h3>
+                        <p className="text-sm text-amber-700 font-medium">{t.competition}</p>
+                    </div>
+                ))}
+            </div>
+          )}
+      </div>
+  );
+  
+  // --- CAREER MODE ---
+  
+  const startCareer = async () => {
+      setCareerStep('amateur-match');
+      // Simula jogo amador
+      setTimeout(async () => {
+          setCareerStep('offers');
+          setCareerOffersList(await generateCareerOffers(careerTempPos));
+      }, 3000);
+  };
+
+  const acceptCareerOffer = (offer: any) => {
+      setCareerStep('signing'); // Mostra tela de assinatura
+
+      setTimeout(() => {
+          setCareerData({
+              playerName: careerTempName,
+              position: careerTempPos,
+              teamName: offer.name,
+              teamColor: offer.color,
+              matchesPlayed: 0,
+              goals: 0,
+              assists: 0,
+              rating: 65,
+              history: [],
+              cash: 0,
+              inventory: [],
+              season: 1,
+              trophies: []
+          });
+          setCareerStep('hub');
+      }, 3000); // 3 segundos de "assinatura"
+  };
+
+  const renderCareerIntro = () => (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+          {careerStep === 'intro' && (
+            <div className="bg-white p-8 rounded-2xl w-full max-w-md">
+                <h2 className="text-3xl font-bold mb-6 text-center text-slate-800">Rumo ao Estrelato</h2>
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-bold mb-1">Nome do Jogador</label>
+                        <input className="w-full border p-3 rounded-lg bg-slate-50" placeholder="Ex: Allejo" value={careerTempName} onChange={e => setCareerTempName(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold mb-1">Posição</label>
+                        <select className="w-full border p-3 rounded-lg bg-slate-50" value={careerTempPos} onChange={(e) => setCareerTempPos(e.target.value as Position)}>
+                            <option value={Position.ATT}>Atacante</option>
+                            <option value={Position.MID}>Meio-Campo</option>
+                            <option value={Position.DEF}>Defensor</option>
+                            <option value={Position.GK}>Goleiro</option>
+                        </select>
+                    </div>
+                    <button onClick={startCareer} disabled={!careerTempName} className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg mt-4 disabled:opacity-50">
+                        Iniciar Jornada
+                    </button>
+                </div>
+            </div>
+          )}
+          
+          {careerStep === 'amateur-match' && (
+              <div className="text-center text-white">
+                  <Activity size={64} className="mx-auto text-emerald-400 animate-pulse mb-4" />
+                  <h2 className="text-2xl font-bold">Disputando Peneira Amadora...</h2>
+                  <p className="text-slate-400">Mostre seu valor para os olheiros!</p>
+              </div>
+          )}
+
+          {careerStep === 'signing' && (
+              <div className="text-center text-white">
+                  <div className="relative mx-auto w-20 h-20 mb-6">
+                       <div className="absolute inset-0 bg-emerald-500 rounded-full opacity-20 animate-ping"></div>
+                       <div className="relative bg-slate-800 rounded-full p-4 border-2 border-emerald-500 flex items-center justify-center w-full h-full">
+                            <PenTool size={32} className="text-emerald-400" />
+                       </div>
+                  </div>
+                  <h2 className="text-3xl font-bold mb-2 animate-pulse">Assinando Contrato...</h2>
+                  <p className="text-slate-400">Oficializando sua transferência e apresentação.</p>
+              </div>
+          )}
+
+          {careerStep === 'offers' && (
+              <div className="w-full max-w-4xl">
+                  <h2 className="text-3xl font-bold text-white text-center mb-8">Propostas Recebidas</h2>
+                  <div className="grid md:grid-cols-3 gap-6">
+                      {careerOffersList.map((offer, idx) => (
+                          <div key={idx} className="bg-white rounded-xl p-6 flex flex-col items-center transform hover:scale-105 transition-transform">
+                              <div className={`w-16 h-16 rounded-full ${offer.color} flex items-center justify-center text-white font-bold text-xl mb-4`}>
+                                  {offer.name.substring(0, 2)}
+                              </div>
+                              <h3 className="font-bold text-xl text-center mb-2">{offer.name}</h3>
+                              <p className="text-emerald-600 font-bold mb-6">${offer.salary}k / semana</p>
+                              <button onClick={() => acceptCareerOffer(offer)} className="w-full py-2 bg-slate-900 text-white rounded-lg font-bold">Assinar Contrato</button>
                           </div>
-                          <h3 className="font-bold text-amber-900">{trophy.name}</h3>
-                          <p className="text-xs text-amber-700 uppercase font-bold mt-1">{trophy.competition}</p>
-                          <span className="mt-3 bg-amber-200 text-amber-900 text-xs font-bold px-2 py-1 rounded-full">Temporada {trophy.year}</span>
-                      </div>
-                  ))}
+                      ))}
+                  </div>
               </div>
           )}
       </div>
   );
 
-  // Career Mode Renderers
-  const renderCareerIntro = () => (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-800 via-slate-900 to-black"></div>
-          <div className="relative z-10 w-full max-w-5xl flex flex-col md:flex-row gap-8 items-center">
-              <div className="hidden md:flex flex-col items-center animate-in slide-in-from-left duration-700">
-                   <div className="w-72 h-[26rem] bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 rounded-t-3xl rounded-b-[3rem] border-4 border-yellow-100 shadow-2xl relative overflow-hidden flex flex-col">
-                        <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-                        <div className="p-5 pt-8 flex flex-col h-full relative z-10 text-amber-950">
-                            <div className="flex justify-between items-start">
-                                <div className="flex flex-col items-center"><span className="text-4xl font-black leading-none">60</span><span className="text-lg font-bold uppercase">{careerTempPos === Position.GK ? 'GOL' : careerTempPos === Position.DEF ? 'DEF' : careerTempPos === Position.MID ? 'MEI' : 'ATA'}</span></div>
-                                <div className="w-8 h-5 bg-blue-700 rounded-sm border border-white opacity-80"></div>
-                            </div>
-                            <div className="flex-1 flex items-center justify-center"><User size={110} className="text-amber-900/80 drop-shadow-md" /></div>
-                            <div className="text-center pb-4"><h2 className="text-2xl font-black uppercase tracking-tighter truncate mb-1">{careerTempName || "JOGADOR"}</h2><div className="w-full h-0.5 bg-amber-900/30 mb-2"></div><div className="flex justify-center gap-3 text-xs font-black opacity-75"><span>PAC 65</span><span>SHO 60</span><span>PAS 62</span><span>DRI 64</span></div></div>
-                        </div>
-                   </div>
+  const renderCareerHub = () => careerData ? (
+      <div className="p-4 md:p-8 pb-24">
+          <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-6 rounded-2xl mb-8">
+              <div className="flex items-center justify-between">
+                  <div>
+                      <h2 className="text-3xl font-bold">{careerData.playerName}</h2>
+                      <p className="text-slate-400">{careerData.teamName} | {careerData.position} | OVR {careerData.rating.toFixed(1)}</p>
+                  </div>
+                  <div className={`w-16 h-16 rounded-full ${careerData.teamColor} flex items-center justify-center font-bold text-xl`}>
+                      {careerData.teamName.substring(0, 2)}
+                  </div>
               </div>
-              <div className="flex-1 w-full max-w-lg">
-                  <div className="mb-6 flex items-center"><button onClick={() => setView(userTeam ? 'dashboard' : 'select-team')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"><ArrowLeftRight size={20} /><span className="font-bold">Voltar</span></button></div>
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl">
-                      {!careerOffers.length ? (
-                          <div className="space-y-6">
-                              <div><label className="block text-xs font-bold text-emerald-400 uppercase mb-2">Nome do Craque</label><input type="text" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-bold text-lg" placeholder="Como serás chamado?" value={careerTempName} onChange={e => setCareerTempName(e.target.value)} /></div>
-                              <div><label className="block text-xs font-bold text-emerald-400 uppercase mb-2">Posição</label><div className="grid grid-cols-2 gap-3">{[{ id: Position.ATT, label: 'Atacante', icon: Target }, { id: Position.MID, label: 'Meio', icon: Activity }, { id: Position.DEF, label: 'Defensor', icon: Shield }, { id: Position.GK, label: 'Goleiro', icon: Handshake }].map((pos) => (<button key={pos.id} onClick={() => setCareerTempPos(pos.id)} className={`p-3 rounded-xl border transition-all flex items-center gap-3 ${careerTempPos === pos.id ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}><pos.icon size={20} /><span className="font-bold text-sm">{pos.label}</span></button>))}</div></div>
-                              <button onClick={async () => { setLoading(true); await new Promise(r => setTimeout(r, 2000)); const teams = [...BRAZILIAN_TEAMS].sort(() => 0.5 - Math.random()).slice(0, 3); setCareerOffers(teams.map(t => ({ name: t.name, color: t.primaryColor }))); setLoading(false); }} disabled={loading || !careerTempName} className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-bold hover:from-emerald-400 hover:to-teal-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 mt-4">{loading ? 'Jogando Peneira...' : 'Entrar em Campo'}</button>
-                          </div>
-                      ) : (
-                          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                              <div className="text-center mb-6"><CheckCircle size={32} className="text-emerald-500 mx-auto mb-2" /><h3 className="text-2xl font-bold text-white">Aprovado!</h3></div>
-                              <div className="space-y-3">{careerOffers.map((offer, idx) => (<button key={idx} onClick={() => { setCareerData({ playerName: careerTempName, position: careerTempPos, teamName: offer.name, teamColor: offer.color, matchesPlayed: 0, goals: 0, assists: 0, rating: 70, history: [], cash: 500, inventory: [], season: 1, trophies: [] }); setView('career-hub'); }} className="w-full p-4 rounded-xl bg-white hover:bg-slate-50 flex items-center justify-between group"><span className="font-bold text-slate-800">{offer.name}</span><span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">Assinar</span></button>))}</div>
-                          </div>
-                      )}
+              <div className="mt-6 grid grid-cols-3 gap-4 text-center">
+                  <div className="bg-white/10 p-3 rounded-lg">
+                      <div className="text-2xl font-bold">{careerData.matchesPlayed}/90</div>
+                      <div className="text-xs uppercase tracking-wider">Partidas</div>
+                  </div>
+                  <div className="bg-white/10 p-3 rounded-lg">
+                      <div className="text-2xl font-bold">{careerData.goals}</div>
+                      <div className="text-xs uppercase tracking-wider">Gols</div>
+                  </div>
+                  <div className="bg-white/10 p-3 rounded-lg">
+                      <div className="text-2xl font-bold">{careerData.assists}</div>
+                      <div className="text-xs uppercase tracking-wider">Assist.</div>
                   </div>
               </div>
           </div>
-      </div>
-  );
-
-  const renderCareerHub = () => {
-      if (!careerData) return null;
-      return (
-          <div className="p-4 md:p-8 pb-24 space-y-6 bg-slate-50 min-h-screen">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-6">
-                  <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg ${careerData.teamColor}`}>{careerData.teamName.substring(0, 2)}</div>
-                  <div className="flex-1">
-                      <h2 className="text-2xl font-bold text-slate-800">{careerData.playerName}</h2>
-                      <p className="text-slate-500 font-medium">{careerData.teamName} • {careerData.position}</p>
-                      <div className="flex gap-4 mt-3"><div className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-bold flex gap-1"><Star size={16} />{careerData.rating} OVR</div><div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">$ {careerData.cash}</div></div>
-                  </div>
+          
+          {simulatingCareer && (
+              <div className="bg-emerald-100 text-emerald-800 p-4 rounded-xl mb-6 flex items-center gap-3 animate-pulse font-bold">
+                  <Activity /> Simulando partida... O craque está em campo!
               </div>
-              <button onClick={async () => { setLoading(true); await new Promise(r => setTimeout(r, 1000)); setCareerData(prev => prev ? ({...prev, matchesPlayed: prev.matchesPlayed + 1, cash: prev.cash + 200, goals: prev.goals + (Math.random() > 0.7 ? 1 : 0), history: [...prev.history, `Jogo ${prev.matchesPlayed + 1}: Nota 7.5`] }) : null); setLoading(false); }} className="w-full p-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl shadow-lg flex items-center justify-between"><div><p className="text-indigo-200 font-medium mb-1">Próxima Partida</p><h3 className="text-2xl font-bold">Jogar Semana {careerData.matchesPlayed + 1}</h3></div>{loading ? <div className="animate-spin w-8 h-8 border-2 border-white rounded-full border-t-transparent"></div> : <PlayCircle size={32} />}</button>
+          )}
+
+          <div className="grid md:grid-cols-2 gap-6">
+              <button 
+                  disabled={simulatingCareer}
+                  onClick={simulateCareerMatch} 
+                  className="p-8 bg-emerald-600 text-white rounded-2xl shadow-lg font-bold text-xl flex items-center justify-center gap-4 hover:bg-emerald-500 transition-colors disabled:opacity-50"
+              >
+                  <PlayCircle size={32} /> JOGAR PRÓXIMA PARTIDA
+              </button>
               
-              <div className="grid grid-cols-2 gap-4">
-                   <button onClick={() => setShowShop(true)} className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-emerald-500 flex flex-col items-center gap-2"><ShoppingBag size={24} className="text-emerald-600" /><span className="font-bold">Loja</span></button>
-                   <button onClick={() => setShowCareerTrophies(true)} className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-amber-500 flex flex-col items-center gap-2"><Trophy size={24} className="text-amber-500" /><span className="font-bold">Conquistas</span></button>
+              <div className="bg-white rounded-2xl p-6 shadow">
+                  <h3 className="font-bold mb-4">Objetivos da Temporada</h3>
+                  <ul className="space-y-3">
+                      <li className="flex items-center gap-2"><div className={`w-5 h-5 rounded-full border flex items-center justify-center ${careerData.matchesPlayed >= 20 ? 'bg-green-500 text-white' : ''}`}><CheckCircle size={14} /></div> Jogar 20 partidas</li>
+                      <li className="flex items-center gap-2"><div className={`w-5 h-5 rounded-full border flex items-center justify-center ${careerData.goals >= 10 ? 'bg-green-500 text-white' : ''}`}><CheckCircle size={14} /></div> Marcar 10 gols</li>
+                  </ul>
               </div>
-              <Card title="Histórico"><div className="space-y-3 max-h-60 overflow-y-auto">{careerData.history.length === 0 ? <p className="text-slate-400">Nada ainda.</p> : [...careerData.history].reverse().map((h, i) => <div key={i} className="p-3 bg-slate-100 rounded">{h}</div>)}</div></Card>
-              <button onClick={() => setView('dashboard')} className="w-full py-3 text-red-500 font-bold">Sair do Modo Carreira</button>
-
-              {showShop && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
-                          <div className="p-4 border-b flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg">Loja</h3><button onClick={() => setShowShop(false)}><X size={20} /></button></div>
-                          <div className="p-4 overflow-y-auto space-y-3">
-                              {shopItems.map(item => {
-                                  const owned = careerData.inventory.includes(item.id);
-                                  return (
-                                      <div key={item.id} className="flex items-center justify-between p-3 border rounded-xl">
-                                          <div className="flex items-center gap-3"><div className="p-2 bg-slate-100 rounded-lg">{item.icon}</div><div><p className="font-bold text-sm">{item.name}</p><p className="text-xs text-slate-500">$ {item.price}</p></div></div>
-                                          <button disabled={owned || careerData.cash < item.price} onClick={() => setCareerData(prev => prev ? ({...prev, cash: prev.cash - item.price, inventory: [...prev.inventory, item.id]}) : null)} className={`px-3 py-1 rounded text-xs font-bold ${owned ? 'bg-slate-200 text-slate-500' : 'bg-emerald-600 text-white'}`}>{owned ? 'Comprado' : 'Comprar'}</button>
-                                      </div>
-                                  )
-                              })}
-                          </div>
-                      </div>
-                  </div>
-              )}
-              {showCareerTrophies && (
-                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 text-center">
-                          <h3 className="text-xl font-bold mb-4">Troféus da Carreira</h3>
-                          <p className="text-slate-500">Em breve...</p>
-                          <button onClick={() => setShowCareerTrophies(false)} className="mt-4 text-slate-400">Fechar</button>
-                      </div>
-                   </div>
-              )}
           </div>
-      );
-  };
 
-  const renderSocial = () => (
-      <div className="p-4 md:p-8 pb-24 max-w-3xl mx-auto">
-          <h2 className="text-3xl font-bold text-slate-800 mb-6">Rede Social</h2>
-          <div className="space-y-4">
-              {socialPosts.map(post => (
-                  <Card key={post.id} className="shadow-md">
-                      <div className="flex gap-3">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-lg bg-indigo-600`}>{post.authorName.charAt(0)}</div>
-                          <div className="flex-1">
-                              <p className="font-bold">{post.authorName} <span className="text-slate-400 text-xs font-normal">• {post.timeAgo}</span></p>
-                              <p className="text-lg text-slate-800 mt-2 mb-3">{post.content}</p>
-                              <div className="flex gap-4 text-slate-500 text-sm">
-                                  <button className="flex items-center gap-1 hover:text-red-500"><Heart size={16} /> {post.likes}</button>
-                                  <button className="flex items-center gap-1"><MessageCircle size={16} /> {post.comments.length}</button>
-                              </div>
-                              {/* Comments */}
-                              <div className="mt-3 bg-slate-50 p-3 rounded-lg space-y-2">
-                                  {post.comments.map((c, i) => (<div key={i} className="text-sm"><span className="font-bold">{c.author}: </span>{c.text}</div>))}
-                                  <div className="flex gap-2 mt-2"><input className="flex-1 border rounded-full px-3 py-1 text-sm" placeholder="Comentar..." value={commentText[post.id] || ''} onChange={e => setCommentText({...commentText, [post.id]: e.target.value})} /><button className="text-emerald-600"><Send size={16} /></button></div>
-                              </div>
-                          </div>
-                      </div>
-                  </Card>
-              ))}
-          </div>
+          <button onClick={() => { setCareerData(null); setCareerStep('intro'); }} className="mt-8 text-red-500 text-sm font-bold">Aposentar Jogador (Sair)</button>
       </div>
-  );
+  ) : null;
+
+  const renderMatch = () => {
+      if (isVisualMatch || preparingVisualMatch) {
+          return (
+            <div className="min-h-screen bg-slate-900 p-4 flex flex-col items-center">
+               <div className="w-full max-w-4xl flex justify-between items-center text-white mb-4 px-4">
+                   <div className="text-center">
+                       <div className="font-bold text-xl">{userTeam?.name}</div>
+                       <div className="text-4xl font-bold">{currentScore.home}</div>
+                   </div>
+                   <div className="text-center">
+                       <div className="font-bold text-xl">{currentOpponent?.name}</div>
+                       <div className="text-4xl font-bold">{currentScore.away}</div>
+                   </div>
+               </div>
+               
+               <SoccerField homeTeam={userTeam!} awayTeam={currentOpponent!} gameTime={simTime} ballPos={ballPosition} homePositions={homePlayerPos} awayPositions={awayPlayerPos} activeTactic={activeIngameTactic} />
+               
+               {/* Tactics Bar */}
+               <div className="w-full max-w-4xl mt-4 grid grid-cols-3 gap-2 md:gap-4">
+                   <button onClick={() => applyInGameTactic("PRESSÃO")} className="bg-red-600 hover:bg-red-500 text-white py-3 rounded-lg font-bold shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-transform"><Zap size={20} /> PRESSÃO ALTA</button>
+                   <button onClick={() => applyInGameTactic("TIKI-TAKA")} className="bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-transform"><Activity size={20} /> POSSE</button>
+                   <button onClick={() => applyInGameTactic("CONTRA-ATAQUE")} className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-transform"><MoveRight size={20} /> CONTRA-ATAQUE</button>
+               </div>
+
+               <div className="mt-4 w-full max-w-4xl bg-black/50 p-4 rounded text-emerald-400 h-32 overflow-y-auto font-mono text-sm">
+                   {matchEvents.filter(e => e.minute <= simTime).map((e,i) => <div key={i} className="mb-1 border-b border-white/10 pb-1">> {e.minute}' {e.description}</div>)}
+               </div>
+            </div>
+          )
+      }
+      return (
+        <div className="p-8 text-center">
+            <h2 className="text-3xl font-bold mb-6">Dia de Jogo - Brasileirão</h2>
+            <div className="flex justify-center gap-8 mb-8 items-center bg-white p-8 rounded-2xl shadow-lg max-w-3xl mx-auto">
+                <div className="text-center">
+                    <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center text-2xl font-bold shadow-lg ${userTeam?.primaryColor} ${userTeam?.secondaryColor}`}>{userTeam?.name.substring(0,3)}</div>
+                    <div className="mt-2 font-bold">{userTeam?.name}</div>
+                </div>
+                <span className="text-4xl font-bold text-slate-300">VS</span>
+                <div className="text-center">
+                    <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center text-2xl font-bold shadow-lg ${currentOpponent?.primaryColor} ${currentOpponent?.secondaryColor}`}>{currentOpponent?.name.substring(0,3)}</div>
+                    <div className="mt-2 font-bold">{currentOpponent?.name}</div>
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                <button onClick={() => startMatch(undefined, false, false)} className="bg-slate-800 text-white px-8 py-4 rounded-xl font-bold text-xl hover:bg-slate-700">Simular Resultado</button>
+                <button onClick={() => startMatch(undefined, false, true)} className="bg-emerald-600 text-white px-8 py-4 rounded-xl font-bold text-xl hover:bg-emerald-500 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"><MonitorPlay /> Assistir Partida 2D</button>
+            </div>
+        </div>
+      );
+  }
+
+  const renderLibertadoresSelect = () => {
+    const teams = getLibertadoresTeams();
+    return (
+        <div className="p-4 md:p-8 bg-slate-900 min-h-screen">
+            <div className="flex items-center gap-4 mb-8">
+                <button onClick={() => setView('dashboard')} className="bg-slate-700 text-white p-3 rounded-full hover:bg-slate-600"><ArrowLeft /></button>
+                <div>
+                    <h2 className="text-3xl text-white font-extrabold tracking-tight">Copa dos Campeões</h2>
+                    <p className="text-slate-400">Selecione seu clube para a glória continental</p>
+                </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {teams.map(t => (
+                    <button 
+                        key={t.id} 
+                        onClick={() => handleLibertadoresSelect(t)} 
+                        className={`relative group p-6 ${t.primaryColor} ${t.secondaryColor} rounded-2xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 h-40 flex flex-col items-center justify-center text-center border-2 border-transparent hover:border-white/50`}
+                    >
+                        <div className="w-14 h-14 rounded-full bg-black/20 flex items-center justify-center mb-3 font-bold text-xl shadow-inner">
+                            {t.name.substring(0,2).toUpperCase()}
+                        </div>
+                        <span className="font-bold text-lg leading-tight">{t.name}</span>
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Medal size={20} />
+                        </div>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+  }
 
   if (view === 'select-team') return <TeamSelection onSelect={handleTeamSelect} />;
   if (view === 'libertadores-select') return renderLibertadoresSelect();
+  // Quando está na carreira (fase inicial), renderiza tela cheia
+  if ((view === 'career-intro' || view === 'career-hub') && careerStep !== 'hub') return renderCareerIntro();
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900 flex flex-col lg:flex-row">
       <Sidebar currentView={view} onChangeView={setView} team={userTeam} />
-      
       <main className="flex-1 overflow-y-auto h-screen no-scrollbar relative">
         {view === 'dashboard' && renderDashboard()}
         {view === 'match' && renderMatch()}
         {view === 'squad' && renderSquad()}
         {view === 'market' && renderMarket()}
-        {view === 'standings' && renderStandings()}
+        {view === 'standings' && <div className="p-8"><h2 className="font-bold text-2xl mb-4">Tabela - Rodada {Math.floor(leagueTable[0]?.played || 0)}/38</h2>{leagueTable.sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)).map((t, i) => <div key={t.id} className={`flex justify-between border-b p-3 ${i === 0 ? 'bg-yellow-50 font-bold' : ''}`}><span>{i+1}. {t.name}</span><div className="flex gap-4"><span>{t.won}V {t.drawn}E {t.lost}D</span><span>{t.points} pts</span></div></div>)}</div>}
         {view === 'trophies' && renderTrophies()}
         {view === 'social' && renderSocial()}
         {view === 'career-intro' && renderCareerIntro()}
         {view === 'career-hub' && renderCareerHub()}
         {view === 'libertadores-hub' && renderLibertadoresHub()}
       </main>
-
       <MobileNav currentView={view} onChangeView={setView} team={userTeam} />
     </div>
   );

@@ -19,11 +19,11 @@ const FICTIONAL_TEAMS = [
   "União da Vila", "Real Futuro", "Dynamo City", "Atlético Várzea", "Sporting Leste", 
   "Norte United", "Estrela do Sul", "Tigres Dourados", "Fênix FC", "Acadêmica Central",
   "Brazuca Juniors", "Nova Era FC", "Leões da Serra", "Guardiões da Bola", "Trovão Azul",
-  "Inter do Bairro", "Cometa FC", "Gigantes da Norte", "Samba FC", "Imperial United"
+  "Inter do Bairro", "Cometa FC", "Gigantes da Norte", "Samba FC", "Imperial United",
+  "Real Capixaba", "Amazonas FC", "Pampa United", "Cerrado Esporte", "Pantanal FC"
 ];
 
 // --- LIBERTADORES DATA ---
-// Mapeamento: Nome Real -> Nome Fictício + Cores
 const LIBERTADORES_DB = [
     { real: "Deportivo Táchira", fake: "Táchira Aurinegro", color: "bg-yellow-500", sec: "text-black" },
     { real: "Carabobo", fake: "Valência Vinho", color: "bg-red-900", sec: "text-white" },
@@ -96,8 +96,6 @@ export const generateLibertadoresGroups = (userTeamName: string): LibGroup[] => 
         groups.push({ name: `Grupo ${name}`, opponents: groupOpponents, completed: false });
     }
 
-    // Se sobrarem times (total 33 - 1 user = 32. 6 grupos de 5 = 30. Sobram 2).
-    // Adicionar Grupo Final ou distribuir. Vamos criar um Grupo G (Final Stage)
     if (currentIndex < shuffled.length) {
          const finalOpponents: LibOpponent[] = [];
          while(currentIndex < shuffled.length) {
@@ -143,7 +141,6 @@ export const generateFictionalTeamName = () => {
 };
 
 export const getFictionalLeagueNames = (count: number): string[] => {
-    // Embaralha e pega 'count' nomes únicos
     const shuffled = [...FICTIONAL_TEAMS].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, count);
 };
@@ -153,6 +150,31 @@ const getRandomNumber = (min: number, max: number) => {
 };
 
 // --- SERVICE FUNCTIONS ---
+
+export const generateLoanOffers = async (): Promise<{name: string, wageSplit: number}[]> => {
+    await delay(300);
+    const n1 = generateFictionalTeamName();
+    let n2 = generateFictionalTeamName();
+    while (n2 === n1) n2 = generateFictionalTeamName(); // Garante nomes diferentes
+
+    return [
+        { name: n1, wageSplit: getRandomNumber(40, 100) }, // Time 1 paga entre 40% e 100% do salário
+        { name: n2, wageSplit: getRandomNumber(40, 100) }
+    ];
+};
+
+export const generateCareerOffers = async (position: string): Promise<{name: string, color: string, salary: number}[]> => {
+    await delay(1000);
+    
+    const offers = [
+        { name: "Raposa Celeste", color: "bg-blue-600", salary: 5 }, // Cruzeiro Fictício
+        { name: generateFictionalTeamName(), color: "bg-slate-700", salary: 3 },
+        { name: generateFictionalTeamName(), color: "bg-red-700", salary: 4 }
+    ];
+    
+    // Shuffle slightly but keep Raposa
+    return offers.sort(() => Math.random() - 0.5);
+};
 
 export const generateSquadForTeam = async (teamName: string): Promise<Player[]> => {
   await delay(800); // Simula tempo de carregamento
@@ -248,124 +270,65 @@ export const simulateMatchWithGemini = async (
     tactics?: { formation: string, style: string, intensity: string },
     isQuickSim: boolean = false
 ): Promise<MatchResult> => {
-  await delay(isQuickSim ? 500 : 2000); // Simula a "IA" pensando e os 90 minutos. Rápido se for quickSim.
+  await delay(isQuickSim ? 500 : 2000); // Simula a "IA" pensando
 
   // 1. Calcular força base dos times
   let myAvg = mySquad.reduce((acc, p) => acc + p.rating, 0) / (mySquad.length || 1);
   
-  // 2. Aplicar bônus TÁTICO (Isto faz as táticas ajudarem a vencer)
+  // 2. Aplicar bônus TÁTICO
   let tacticalBonus = 0;
   let tacticLog = "";
   
   if (tactics) {
-      // Bônus por Formação
-      if (tactics.formation === '4-3-3') { tacticalBonus += 3; tacticLog += "Ataque Forte (+3). "; } 
-      else if (tactics.formation === '3-5-2') { tacticalBonus += 2; tacticLog += "Meio-campo preenchido (+2). "; }
-      else { tacticalBonus += 1; tacticLog += "Equilíbrio defensivo (+1). "; } // 4-4-2
+      if (tactics.formation === '4-3-3') { tacticalBonus += 3; tacticLog += "Ataque Forte. "; } 
+      else if (tactics.formation === '3-5-2') { tacticalBonus += 2; tacticLog += "Meio Dominado. "; }
+      else { tacticalBonus += 1; tacticLog += "Equilíbrio. "; }
 
-      // Bônus por Estilo
-      if (tactics.style === 'Tic-Taka') { tacticalBonus += 2; tacticLog += "Posse de bola dominada (+2). "; }
-      else if (tactics.style === 'Contra-Ataque') { tacticalBonus += 2.5; tacticLog += "Contra-ataques letais (+2.5). "; }
+      if (tactics.style === 'Tic-Taka') { tacticalBonus += 2; tacticLog += "Posse. "; }
+      else if (tactics.style === 'Contra-Ataque') { tacticalBonus += 2.5; tacticLog += "Velocidade. "; }
 
-      // Bônus por Intensidade
-      if (tactics.intensity === 'Pressão Alta') { tacticalBonus += 3; tacticLog += "Adversário sufocado (+3). "; }
-      else if (tactics.intensity === 'Equilibrado') { tacticalBonus += 1; }
+      if (tactics.intensity === 'Pressão Alta') { tacticalBonus += 3; tacticLog += "Pressão. "; }
   }
 
-  // Aplica o bônus na força do time
   myAvg += tacticalBonus;
 
-  // Oponente tem força aleatória entre 70 e 85
-  // Reduzimos levemente a força máxima do oponente para balancear a favor do jogador se ele usar táticas
   const oppStrength = getRandomNumber(70, 83) + (Math.random() > 0.5 ? 1 : -1);
-
-  // 3. Determinar placar baseado na diferença de força + fator sorte
   const strengthDiff = myAvg - oppStrength;
-  
-  // Sorte ajuda um pouco, mas a tática define mais
   const luck = Math.random() * 8 - 3; 
   const matchFactor = strengthDiff + luck;
 
   let myScore = 0;
   let oppScore = 0;
 
-  if (matchFactor > 8) {
-    // Vitória Goleada
-    myScore = getRandomNumber(3, 6);
-    oppScore = getRandomNumber(0, 1);
-  } else if (matchFactor > 3) {
-    // Vitória Confortável
-    myScore = getRandomNumber(2, 3);
-    oppScore = getRandomNumber(0, 1);
-  } else if (matchFactor > 0) {
-    // Jogo Apertado (Vitória ou Empate)
-    myScore = getRandomNumber(1, 2);
-    oppScore = getRandomNumber(0, 2);
-    // Garante vitória se a tática for boa
-    if (tacticalBonus > 5 && myScore <= oppScore) myScore += 1; 
-  } else if (matchFactor > -5) {
-    // Empate ou Derrota leve
-    myScore = getRandomNumber(0, 1);
-    oppScore = getRandomNumber(1, 2);
-  } else {
-    // Derrota
-    myScore = getRandomNumber(0, 1);
-    oppScore = getRandomNumber(2, 4);
-  }
+  if (matchFactor > 8) { myScore = getRandomNumber(3, 6); oppScore = getRandomNumber(0, 1); } 
+  else if (matchFactor > 3) { myScore = getRandomNumber(2, 3); oppScore = getRandomNumber(0, 1); } 
+  else if (matchFactor > 0) { myScore = getRandomNumber(1, 2); oppScore = getRandomNumber(0, 2); if (tacticalBonus > 5 && myScore <= oppScore) myScore += 1; } 
+  else if (matchFactor > -5) { myScore = getRandomNumber(0, 1); oppScore = getRandomNumber(1, 2); } 
+  else { myScore = getRandomNumber(0, 1); oppScore = getRandomNumber(2, 4); }
 
-  // 4. Gerar Eventos condizentes com o placar
   const events: any[] = [];
 
-  // Gols do time da casa
   for (let i = 0; i < myScore; i++) {
-    events.push({
-      minute: getRandomNumber(5, 90),
-      description: `GOL! ${generateName()} marca! (${tacticLog.split('.')[0]})`,
-      type: 'goal',
-      team: 'home'
-    });
+    events.push({ minute: getRandomNumber(5, 90), description: `GOL! ${generateName()} marca!`, type: 'goal', team: 'home' });
   }
 
-  // Gols do adversário
   for (let i = 0; i < oppScore; i++) {
-    events.push({
-      minute: getRandomNumber(5, 90),
-      description: `Gol do ${opponent.name}. Falha na marcação.`,
-      type: 'goal',
-      team: 'away'
-    });
+    events.push({ minute: getRandomNumber(5, 90), description: `Gol do ${opponent.name}.`, type: 'goal', team: 'away' });
   }
 
-  // Cartões e substituições
   const extraEventsCount = getRandomNumber(2, 4);
   for (let i = 0; i < extraEventsCount; i++) {
     const minute = getRandomNumber(10, 85);
     const isCard = Math.random() > 0.6;
-    if (isCard) {
-      events.push({
-        minute,
-        description: `Cartão amarelo. Jogo pegado.`,
-        type: 'card',
-        team: Math.random() > 0.5 ? 'home' : 'away'
-      });
-    } else {
-      events.push({
-        minute,
-        description: `Técnico mexe no time.`,
-        type: 'substitution',
-        team: Math.random() > 0.5 ? 'home' : 'away'
-      });
-    }
+    events.push({ minute, description: isCard ? `Cartão amarelo.` : `Substituição.`, type: isCard ? 'card' : 'substitution', team: Math.random() > 0.5 ? 'home' : 'away' });
   }
 
-  // Ordenar eventos por minuto
   events.sort((a, b) => a.minute - b.minute);
 
-  // Gerar resumo
   let summary = "";
-  if (myScore > oppScore) summary = `Vitória importante! As táticas funcionaram bem.`;
-  else if (myScore === oppScore) summary = `Tudo igual. O jogo foi equilibrado.`;
-  else summary = `Derrota. Precisamos rever a estratégia para o próximo jogo.`;
+  if (myScore > oppScore) summary = `Vitória importante!`;
+  else if (myScore === oppScore) summary = `Tudo igual.`;
+  else summary = `Derrota.`;
 
   return {
     homeScore: myScore,
@@ -380,16 +343,8 @@ export const simulateMatchWithGemini = async (
 
 export const generateScoutReport = async (playerName: string, position: string): Promise<string> => {
   await delay(1000);
-  
   const reports = [
-    `Impressionou pela velocidade e controle de bola. Um talento nato para a posição de ${position}.`,
-    `Jogador muito tático, sabe se posicionar bem e tem um futuro brilhante.`,
-    `Destacou-se na partida pela garra e determinação. A torcida já gosta dele.`,
-    `Tecnicamente acima da média para a idade. Precisa de polimento, mas é uma joia.`,
-    `Tem um chute poderoso e visão de jogo. Os olheiros recomendam fortemente.`,
-    `Um líder em campo. Organizou o time e mostrou maturidade.`,
-    `Fisicamente privilegiado e com boa técnica. Pode evoluir muito em um clube grande.`
+    `Impressionou pela velocidade.`, `Muito tático.`, `Muita garra.`, `Tecnicamente acima da média.`, `Chute poderoso.`
   ];
-
   return reports[Math.floor(Math.random() * reports.length)];
 };
