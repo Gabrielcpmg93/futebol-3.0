@@ -52,7 +52,8 @@ import {
     Send,
     CalendarClock,
     FileText,
-    Info
+    Info,
+    User as UserIcon
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -223,28 +224,51 @@ const SoccerField = ({
     awayPositions: {x: number, y: number}[]
 }) => {
     return (
-        <div className="w-full aspect-[16/9] bg-green-600 rounded-lg relative overflow-hidden border-4 border-slate-800 shadow-inner select-none">
+        <div className="w-full aspect-[16/9] bg-[#2a8a3d] rounded-lg relative overflow-hidden border-[6px] border-slate-800 shadow-2xl select-none">
+            {/* Grass Pattern (Stripes) */}
+            <div className="absolute inset-0 opacity-20 pointer-events-none" 
+                 style={{ 
+                     backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 5%, #000 5%, #000 10%)',
+                     backgroundSize: '100% 100%'
+                 }}>
+            </div>
+
             {/* Field Lines */}
-            <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/50 transform -translate-x-1/2"></div>
-            <div className="absolute top-1/2 left-1/2 w-20 h-20 md:w-32 md:h-32 border-2 border-white/50 rounded-full transform -translate-x-1/2 -translate-y-1/2"></div>
-            <div className="absolute top-0 left-0 w-full h-full border-2 border-white/50 m-2 md:m-4 box-border pointer-events-none"></div>
+            {/* Center Line */}
+            <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/60 transform -translate-x-1/2 z-0"></div>
             
-            {/* Penalty Areas */}
-            <div className="absolute top-1/2 left-0 w-[15%] h-[40%] border-2 border-white/50 bg-transparent transform -translate-y-1/2 ml-2 md:ml-4"></div>
-            <div className="absolute top-1/2 right-0 w-[15%] h-[40%] border-2 border-white/50 bg-transparent transform -translate-y-1/2 mr-2 md:mr-4"></div>
+            {/* Center Circle */}
+            <div className="absolute top-1/2 left-1/2 w-20 h-20 md:w-32 md:h-32 border-2 border-white/60 rounded-full transform -translate-x-1/2 -translate-y-1/2 z-0"></div>
+            <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-white rounded-full transform -translate-x-1/2 -translate-y-1/2 z-0"></div>
+
+            {/* Outer Boundary */}
+            <div className="absolute top-0 left-0 w-full h-full border-2 border-white/60 m-2 md:m-4 box-border pointer-events-none z-0" style={{ width: 'calc(100% - 16px)', height: 'calc(100% - 16px)' }}></div>
+            
+            {/* Penalty Areas - Left */}
+            <div className="absolute top-1/2 left-0 w-[14%] h-[40%] border-2 border-white/60 bg-transparent transform -translate-y-1/2 ml-2 md:ml-4 z-0"></div>
+            <div className="absolute top-1/2 left-0 w-[5%] h-[20%] border-r-2 border-y-2 border-white/60 bg-transparent transform -translate-y-1/2 ml-2 md:ml-4 z-0"></div>
+            
+            {/* Penalty Areas - Right */}
+            <div className="absolute top-1/2 right-0 w-[14%] h-[40%] border-2 border-white/60 bg-transparent transform -translate-y-1/2 mr-2 md:mr-4 z-0"></div>
+            <div className="absolute top-1/2 right-0 w-[5%] h-[20%] border-l-2 border-y-2 border-white/60 bg-transparent transform -translate-y-1/2 mr-2 md:mr-4 z-0"></div>
+
+            {/* Corners */}
+            <div className="absolute top-2 left-2 md:top-4 md:left-4 w-4 h-4 border-b-2 border-r-2 border-white/60 rounded-br-full z-0"></div>
+            <div className="absolute top-2 right-2 md:top-4 md:right-4 w-4 h-4 border-b-2 border-l-2 border-white/60 rounded-bl-full z-0"></div>
+            <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 w-4 h-4 border-t-2 border-r-2 border-white/60 rounded-tr-full z-0"></div>
+            <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4 w-4 h-4 border-t-2 border-l-2 border-white/60 rounded-tl-full z-0"></div>
 
             {/* Goals */}
-            <div className="absolute top-1/2 left-0 w-1 h-12 bg-white transform -translate-y-1/2 -translate-x-full"></div>
-            <div className="absolute top-1/2 right-0 w-1 h-12 bg-white transform -translate-y-1/2 translate-x-full"></div>
+            <div className="absolute top-1/2 left-0 w-1.5 h-12 md:h-16 bg-slate-200 border border-slate-400 transform -translate-y-1/2 -translate-x-full shadow-sm"></div>
+            <div className="absolute top-1/2 right-0 w-1.5 h-12 md:h-16 bg-slate-200 border border-slate-400 transform -translate-y-1/2 translate-x-full shadow-sm"></div>
 
             {/* Players - Home */}
             {homePositions.map((pos, i) => (
                 <div 
                     key={`home-${i}`}
-                    className={`absolute w-3 h-3 md:w-4 md:h-4 rounded-full shadow-sm border border-white transition-all duration-500 ease-linear z-10 flex items-center justify-center text-[6px] text-white font-bold ${homeTeam.primaryColor}`}
+                    className={`absolute w-3 h-3 md:w-5 md:h-5 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.3)] border-2 border-white transition-all duration-700 ease-in-out z-10 flex items-center justify-center text-[6px] text-white font-bold ${homeTeam.primaryColor}`}
                     style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
                 >
-                    {/* Optional: Number */}
                 </div>
             ))}
 
@@ -252,7 +276,7 @@ const SoccerField = ({
             {awayPositions.map((pos, i) => (
                 <div 
                     key={`away-${i}`}
-                    className={`absolute w-3 h-3 md:w-4 md:h-4 rounded-full shadow-sm border border-white transition-all duration-500 ease-linear z-10 flex items-center justify-center text-[6px] ${awayTeam.primaryColor} ${awayTeam.secondaryColor === 'text-white' ? 'text-white' : 'text-black'}`}
+                    className={`absolute w-3 h-3 md:w-5 md:h-5 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.3)] border-2 border-white transition-all duration-700 ease-in-out z-10 flex items-center justify-center text-[6px] ${awayTeam.primaryColor} ${awayTeam.secondaryColor === 'text-white' ? 'text-white' : 'text-black'}`}
                     style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
                 >
                 </div>
@@ -260,14 +284,16 @@ const SoccerField = ({
 
             {/* Ball */}
             <div 
-                className="absolute w-2 h-2 md:w-2.5 md:h-2.5 bg-white rounded-full shadow-lg z-20 transition-all duration-500 ease-linear border border-slate-400"
+                className="absolute w-2 h-2 md:w-3 md:h-3 bg-white rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.4)] z-20 transition-all duration-700 ease-in-out border border-slate-300 flex items-center justify-center"
                 style={{ left: `${ballPos.x}%`, top: `${ballPos.y}%`, transform: 'translate(-50%, -50%)' }}
-            ></div>
+            >
+                <div className="w-full h-full rounded-full bg-[radial-gradient(circle_at_30%_30%,white,#ccc)]"></div>
+            </div>
             
             {/* Game Time Overlay */}
-            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full font-mono font-bold text-sm backdrop-blur-sm flex items-center gap-2">
-                <Timer size={14} />
-                {gameTime}'
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-900/90 text-white px-4 py-1.5 rounded-full font-mono font-bold text-sm md:text-base backdrop-blur-sm flex items-center gap-3 border border-white/10 shadow-lg z-30">
+                <Timer size={16} className="text-emerald-400" />
+                <span>{gameTime}'</span>
             </div>
         </div>
     );
@@ -563,6 +589,77 @@ export default function App() {
            return newTable;
       });
   }
+
+  const updateLeagueTable = (result: MatchResult) => {
+       let newStatsForCheck: TeamStats | null = null;
+
+       // Update User Team
+       setLeagueTable(prev => {
+           const newTable = [...prev];
+           const userEntry = newTable.find(t => t.id === userTeam?.id);
+           if (userEntry) {
+               userEntry.played += 1;
+               userEntry.gf += result.homeScore;
+               userEntry.ga += result.awayScore;
+               if (result.homeScore > result.awayScore) { userEntry.points += 3; userEntry.won += 1; }
+               else if (result.homeScore === result.awayScore) { userEntry.points += 1; userEntry.drawn += 1; }
+               else { userEntry.lost += 1; }
+               
+               newStatsForCheck = {...userEntry}; // Copy for checking after state update
+           }
+           
+           // Simulate other matches for realism
+           newTable.forEach(t => {
+               if (t.id !== userTeam?.id) {
+                   // Random simulation for others
+                   if (Math.random() > 0.5) { // 50% chance they played this week
+                       const gf = Math.floor(Math.random() * 4);
+                       const ga = Math.floor(Math.random() * 4);
+                       t.played += 1;
+                       t.gf += gf;
+                       t.ga += ga;
+                       if (gf > ga) { t.points += 3; t.won += 1; }
+                       else if (gf === ga) { t.points += 1; t.drawn += 1; }
+                       else { t.lost += 1; }
+                   }
+               }
+           });
+           
+           return newTable;
+       });
+       
+       setWeek(w => w + 1);
+
+       // CHECK TROPHY CONDITIONS (Using the local variable to avoid stale state)
+       if (newStatsForCheck) {
+           const stats = newStatsForCheck as TeamStats;
+
+           // 1. Trophy: "Best Manager" (Reach 38 Points)
+           if (stats.points >= 38) {
+               setTrophies(prev => {
+                   if (!prev.find(t => t.name === 'Melhor Técnico')) {
+                       alert("🏆 CONQUISTA: Melhor Técnico! (Atingiu 38 pontos)");
+                       // Navigate to Trophies immediately to show it off
+                       setView('trophies');
+                       return [...prev, { id: `manager-${Date.now()}`, name: 'Melhor Técnico', year: 1, competition: 'Brasileirão' }];
+                   }
+                   return prev;
+               });
+           }
+
+           // 2. Trophy: "Season Champion" (Reach 89 Points)
+           if (stats.points >= 89) {
+                setTrophies(prev => {
+                   if (!prev.find(t => t.name === 'Campeão Brasileiro')) {
+                       alert("🏆 É CAMPEÃO! O título é seu! (Atingiu 89 pontos)");
+                       setView('trophies');
+                       return [...prev, { id: `champ-${Date.now()}`, name: 'Campeão Brasileiro', year: 1, competition: 'Série A' }];
+                   }
+                   return prev;
+               });
+           }
+       }
+  };
 
   const refreshMarket = async () => {
       setLoading(true);
@@ -1296,10 +1393,56 @@ export default function App() {
                      <p className="text-xs text-emerald-600 font-bold mt-1">{squad.length} Jogadores</p>
                  </div>
              </button>
+
+             {/* 5. Sala de Troféus */}
+             <button 
+                onClick={() => setView('trophies')}
+                className="p-6 bg-gradient-to-br from-amber-100 to-amber-50 text-amber-900 border border-amber-200 rounded-2xl shadow-sm hover:border-amber-500 transition-colors flex flex-col justify-between min-h-[160px] relative overflow-hidden sm:col-span-2 lg:col-span-1"
+             >
+                 <div className="p-3 bg-white/60 text-amber-600 rounded-xl w-fit backdrop-blur-sm">
+                     <Award size={28} />
+                 </div>
+                 <div className="text-left relative z-10">
+                     <p className="text-amber-700 text-sm font-medium mb-1">Conquistas</p>
+                     <h3 className="text-xl font-bold">Sala de Troféus</h3>
+                     <p className="text-xs text-amber-600 font-bold mt-1">{trophies.length} Taças</p>
+                 </div>
+                 <Trophy size={100} className="absolute -bottom-4 -right-4 text-amber-200/50" />
+             </button>
         </div>
 
-        {/* Side Column - Highlights, Market, Renewals */}
+        {/* Side Column - Highlights, Table, Market, Renewals */}
         <div className="space-y-6">
+             
+             {/* Tabela Resumida (Novo) */}
+             <Card title="Classificação - Série A" action={<button onClick={() => setView('standings')} className="text-xs text-blue-600 font-bold">Ver Tudo</button>}>
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead className="text-slate-400 border-b text-[10px] uppercase">
+                            <tr>
+                                <th className="pb-2 pl-1">Pos</th>
+                                <th className="pb-2">Time</th>
+                                <th className="pb-2 text-center">Pts</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-slate-700">
+                            {[...leagueTable]
+                                .sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga))
+                                .map((t, i) => ({...t, rank: i + 1}))
+                                .filter((t, i) => i < 4 || t.id === userTeam?.id) // Show Top 4 + User
+                                .slice(0, 5) // Limit to 5 rows max
+                                .map((team, idx) => (
+                                <tr key={team.id} className={`border-b last:border-0 ${team.id === userTeam?.id ? 'bg-emerald-50 font-bold' : ''}`}>
+                                    <td className="py-2 pl-2 w-8">{team.rank}º</td>
+                                    <td className="py-2 truncate max-w-[100px]">{team.name}</td>
+                                    <td className="py-2 text-center font-bold">{team.points}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                 </div>
+             </Card>
+
              {/* Destaques */}
              <Card title="Destaques do Elenco">
                 <div className="space-y-2">
@@ -2036,42 +2179,6 @@ export default function App() {
       setMatchResult(result);
       updateLeagueTable(result);
       generatePostMatchSocial(); // Generate posts
-  };
-
-  const updateLeagueTable = (result: MatchResult) => {
-       // Update User Team
-       setLeagueTable(prev => {
-           const newTable = [...prev];
-           const userEntry = newTable.find(t => t.id === userTeam?.id);
-           if (userEntry) {
-               userEntry.played += 1;
-               userEntry.gf += result.homeScore;
-               userEntry.ga += result.awayScore;
-               if (result.homeScore > result.awayScore) { userEntry.points += 3; userEntry.won += 1; }
-               else if (result.homeScore === result.awayScore) { userEntry.points += 1; userEntry.drawn += 1; }
-               else { userEntry.lost += 1; }
-           }
-           
-           // Simulate other matches for realism
-           newTable.forEach(t => {
-               if (t.id !== userTeam?.id) {
-                   // Random simulation for others
-                   if (Math.random() > 0.5) { // 50% chance they played this week
-                       const gf = Math.floor(Math.random() * 4);
-                       const ga = Math.floor(Math.random() * 4);
-                       t.played += 1;
-                       t.gf += gf;
-                       t.ga += ga;
-                       if (gf > ga) { t.points += 3; t.won += 1; }
-                       else if (gf === ga) { t.points += 1; t.drawn += 1; }
-                       else { t.lost += 1; }
-                   }
-               }
-           });
-           
-           return newTable;
-       });
-       setWeek(w => w + 1);
   };
 
   // --- Main Render ---
